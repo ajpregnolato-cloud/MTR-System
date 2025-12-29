@@ -79,12 +79,17 @@ export class SinirService {
     const credentials = await this.getCredentials();
     const { usuario, senha, preToken, cnpj, unidade } = credentials;
     
-    // If we have a pre-generated token, use it directly (could be API WS token, not JWT)
+    // Check if pre-configured token is a valid JWT (has 2 dots)
     if (preToken && preToken.length > 10) {
-      // For API WS tokens, just use them as-is with Bearer prefix
-      this.token = preToken.startsWith('Bearer ') ? preToken : `Bearer ${preToken}`;
-      console.log("[SINIR] Using pre-configured token (API WS or JWT)");
-      return true;
+      const tokenValue = preToken.startsWith('Bearer ') ? preToken.substring(7) : preToken;
+      const dotCount = (tokenValue.match(/\./g) || []).length;
+      if (dotCount === 2) {
+        this.token = preToken.startsWith('Bearer ') ? preToken : `Bearer ${preToken}`;
+        console.log("[SINIR] Using pre-configured JWT token");
+        return true;
+      } else {
+        console.log("[SINIR] Token API WS detected (not JWT), will authenticate with credentials...");
+      }
     }
     
     if (!usuario || !senha || !cnpj) {
@@ -94,7 +99,7 @@ export class SinirService {
 
     try {
       // Try new API endpoint first
-      console.log("[SINIR] Attempting authentication with new API...");
+      console.log("[SINIR] Attempting authentication with credentials...");
       // Clean CPF from punctuation for usuario field
       const cleanUsuario = usuario.replace(/\D/g, '');
       const authPayload: any = {
