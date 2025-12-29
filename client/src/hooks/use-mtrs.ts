@@ -166,9 +166,31 @@ export function useValidateMtrs() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: [api.mtrs.list.path] });
       toast({ 
-        title: "Validation Complete", 
-        description: `Processed ${data.processed} MTRs. ${data.valid} valid, ${data.errors} errors.` 
+        title: "Validação Concluída", 
+        description: `Processados ${data.processed} MTRs. ${data.valid} válidos, ${data.errors} erros.` 
       });
     },
+  });
+}
+
+export function useTestSinirConnection() {
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/sinir/test", { credentials: "include" });
+      if (!res.ok) throw new Error("Teste falhou");
+      return res.json() as Promise<{ success: boolean; message: string }>;
+    },
+    onSuccess: (data) => {
+      toast({ 
+        variant: data.success ? "default" : "destructive",
+        title: data.success ? "Conexão OK" : "Erro de Conexão", 
+        description: data.message 
+      });
+    },
+    onError: (err) => {
+      toast({ variant: "destructive", title: "Erro", description: err.message });
+    }
   });
 }

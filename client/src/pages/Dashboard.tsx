@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { 
-  BarChart, 
   FileSpreadsheet, 
   Send, 
   AlertOctagon, 
@@ -10,7 +9,9 @@ import {
   RefreshCw,
   MoreVertical,
   Trash2,
-  Play
+  Play,
+  Wifi,
+  WifiOff
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -23,7 +24,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { MetricCard } from "@/components/MetricCard";
 import { StatusBadge } from "@/components/StatusBadge";
 import { MtrEditDialog } from "@/components/MtrEditDialog";
-import { useMtrs, useUploadSinir, useBatchProcess, useDeleteMtr, useValidateMtrs } from "@/hooks/use-mtrs";
+import { useMtrs, useUploadSinir, useBatchProcess, useDeleteMtr, useValidateMtrs, useTestSinirConnection } from "@/hooks/use-mtrs";
 import { useLogStats } from "@/hooks/use-logs";
 
 export default function Dashboard() {
@@ -39,6 +40,7 @@ export default function Dashboard() {
   const batchMutation = useBatchProcess();
   const deleteMutation = useDeleteMtr();
   const validateMutation = useValidateMtrs();
+  const testSinirMutation = useTestSinirConnection();
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -75,7 +77,20 @@ export default function Dashboard() {
           <h1 className="text-3xl font-bold text-slate-900 font-display">MTR Receiver</h1>
           <p className="text-slate-500 mt-1">Gerencie, valide e processe manifestos de resíduos do SINIR.</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          <Button 
+            variant="outline" 
+            onClick={() => testSinirMutation.mutate()}
+            disabled={testSinirMutation.isPending}
+            data-testid="button-test-sinir"
+          >
+            {testSinirMutation.isPending ? (
+              <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Wifi className="mr-2 h-4 w-4" />
+            )}
+            Testar SINIR
+          </Button>
           <Button variant="outline" onClick={() => validateMutation.mutate(selectedIds.length ? selectedIds : undefined)}>
             <CheckCheck className="mr-2 h-4 w-4" />
             Validar {selectedIds.length > 0 ? `(${selectedIds.length})` : 'Todos'}

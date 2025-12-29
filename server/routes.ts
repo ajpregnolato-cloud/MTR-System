@@ -66,10 +66,14 @@ export async function registerRoutes(
         details: { rowCount: data.length }
       });
 
+      // Group rows by MTR code to handle multiple residues per MTR
+      const mtrGroups = new Map<string, any[]>();
+      
       for (const row of data) {
-        // Business Rule: ONLY "SALVO" (case-insensitive)
         const status = row["Situação"];
         const normalizedStatus = String(status || "").toUpperCase().trim();
+        
+        // Business Rule: ONLY "SALVO" (case-insensitive)
         if (normalizedStatus !== "SALVO") {
           skipped++;
           continue;
@@ -81,35 +85,47 @@ export async function registerRoutes(
           continue;
         }
 
+        const key = String(mtrCode);
+        if (!mtrGroups.has(key)) {
+          mtrGroups.set(key, []);
+        }
+        mtrGroups.get(key)!.push(row);
+      }
+
+      // Process each MTR with its items
+      for (const [mtrCode, rows] of mtrGroups) {
         // Check duplicate
         const existing = await storage.getMtrByCode(mtrCode);
         if (existing) {
-          skipped++; // Or update? Assuming skip for now or we could overwrite
+          skipped++;
           continue; 
         }
 
+        const firstRow = rows[0];
+        const items = rows.map(row => ({
+          code: row["Resíduo Cód/Descrição"] ? String(row["Resíduo Cód/Descrição"]).split('-')[0].trim() : undefined,
+          description: row["Resíduo Cód/Descrição"],
+          quantity: parseFloat(String(row["Quantidade indicada"] || "0").replace(",", ".")) || 0,
+          unit: row["Unidade"],
+          treatment: row["Tratamento"],
+          class: row["Classe"]
+        }));
+
         try {
           await storage.createMtr({
-            mtrCode: String(mtrCode),
-            manifestType: row["Tipo Manifesto"],
-            emissionDate: row["Data de Emissão"] ? parseExcelDate(row["Data de Emissão"]) : undefined,
-            generatorName: row["Gerador (Nome)"],
-            generatorCnpj: row["Gerador (CNPJ/CPF)"],
-            transporterName: row["Transportador (Nome)"],
-            transporterCnpj: row["Transportador (CNPJ/CPF)"],
-            receiverName: row["Destinador (Nome)"],
-            receiverCnpj: row["Destinador (CNPJ/CPF)"],
-            sinirStatus: status,
+            mtrCode: mtrCode,
+            manifestType: firstRow["Tipo Manifesto"],
+            emissionDate: firstRow["Data de Emissão"] ? parseExcelDate(firstRow["Data de Emissão"]) : undefined,
+            generatorName: firstRow["Gerador (Nome)"],
+            generatorCnpj: firstRow["Gerador (CNPJ/CPF)"],
+            transporterName: firstRow["Transportador (Nome)"],
+            transporterCnpj: firstRow["Transportador (CNPJ/CPF)"],
+            receiverName: firstRow["Destinador (Nome)"],
+            receiverCnpj: firstRow["Destinador (CNPJ/CPF)"],
+            sinirStatus: firstRow["Situação"],
             systemStatus: "PENDENTE",
             isValid: false,
-          }, [{
-            code: row["Resíduo Cód/Descrição"] ? String(row["Resíduo Cód/Descrição"]).split(' - ')[0] : undefined,
-            description: row["Resíduo Cód/Descrição"],
-            quantity: row["Quantidade indicada"],
-            unit: row["Unidade"],
-            treatment: row["Tratamento"],
-            class: row["Classe"]
-          }]);
+          }, items);
           imported++;
         } catch (err: any) {
           errors.push(`Error importing ${mtrCode}: ${err.message}`);
