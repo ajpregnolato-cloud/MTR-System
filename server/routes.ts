@@ -291,5 +291,53 @@ export async function registerRoutes(
     res.json(stats);
   });
 
+  // === SINIR API Direct Access ===
+  
+  // Test SINIR connection
+  app.get("/api/sinir/test", async (req, res) => {
+    const sinir = new SinirService();
+    const result = await sinir.testConnection();
+    
+    await storage.createLog({
+      level: result.success ? 'INFO' : 'ERROR',
+      category: 'SINIR',
+      message: `Teste de conexão: ${result.message}`,
+      details: result
+    });
+    
+    res.json(result);
+  });
+
+  // Fetch MTR from SINIR by code
+  app.get("/api/sinir/mtr/:code", async (req, res) => {
+    const sinir = new SinirService();
+    const mtrData = await sinir.getMtrByCode(req.params.code);
+    
+    if (!mtrData) {
+      return res.status(404).json({ message: "MTR não encontrado no SINIR" });
+    }
+    
+    res.json(mtrData);
+  });
+
+  // Get SINIR reference lists
+  app.get("/api/sinir/units", async (req, res) => {
+    const sinir = new SinirService();
+    const units = await sinir.getUnits();
+    res.json(units);
+  });
+
+  app.get("/api/sinir/treatments", async (req, res) => {
+    const sinir = new SinirService();
+    const treatments = await sinir.getTreatments();
+    res.json(treatments);
+  });
+
+  app.get("/api/sinir/classes", async (req, res) => {
+    const sinir = new SinirService();
+    const classes = await sinir.getResidueClasses();
+    res.json(classes);
+  });
+
   return httpServer;
 }
