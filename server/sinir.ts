@@ -136,6 +136,47 @@ export class SinirService {
     return unitMap[normalized] || 1;
   }
 
+  // Helper to map treatment text to SINIR treatment code (traCodigo)
+  private getTreatmentCode(treatmentText: string | null): number {
+    if (!treatmentText) return 1;
+    const normalized = treatmentText.toLowerCase().trim();
+    const treatmentMap: Record<string, number> = {
+      'rerrefino': 1,
+      'reciclagem': 2,
+      'coprocessamento': 3,
+      'blendagem para coprocessamento': 3,
+      'incineração': 4,
+      'blendagem para incineração': 4,
+      'aterro industrial': 5,
+      'aterro': 5,
+      'tratamento de efluentes': 6,
+      'autoclave': 7,
+      'triagem': 8,
+      'triagem com armazenamento': 8,
+      'armazenamento': 9,
+      'compostagem': 10,
+      'biodigestão': 11,
+      'descontaminação': 12,
+      'neutralização': 13,
+      'recuperação': 14,
+      'dessorção térmica': 15,
+      'pirólise': 16,
+      'processamento': 17,
+    };
+    
+    // Try exact match first
+    if (treatmentMap[normalized]) return treatmentMap[normalized];
+    
+    // Try partial match
+    for (const [key, value] of Object.entries(treatmentMap)) {
+      if (normalized.includes(key) || key.includes(normalized)) {
+        return value;
+      }
+    }
+    
+    return 1; // Default to Rerrefino if unknown
+  }
+
   // Extract IBAMA code from residue code/description
   private extractIbamaCode(code: string | null): string {
     if (!code) return '';
@@ -167,6 +208,7 @@ export class SinirService {
           marQuantidade: qty,
           marQuantidadeRecebida: qty,
           uniCodigo: this.getUnitCode(item.unit),
+          traCodigo: this.getTreatmentCode(item.treatment),
         };
       }),
     }));
