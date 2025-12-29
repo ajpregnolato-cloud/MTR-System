@@ -368,6 +368,63 @@ export async function registerRoutes(
     res.json(classes);
   });
 
+  // === SINIR Configuration ===
+  app.get("/api/config", async (req, res) => {
+    const config = await storage.getSinirConfig();
+    if (config) {
+      res.json({
+        cnpj: config.cnpj || "",
+        usuario: config.usuario || "",
+        senha: config.senha ? "********" : "",
+        unidade: config.unidade || "",
+        token: config.token ? config.token.substring(0, 20) + "..." : "",
+        hasPassword: !!config.senha,
+        hasToken: !!config.token,
+        updatedAt: config.updatedAt
+      });
+    } else {
+      res.json({ cnpj: "", usuario: "", senha: "", unidade: "", token: "", hasPassword: false, hasToken: false });
+    }
+  });
+
+  app.post("/api/config", async (req, res) => {
+    try {
+      const { cnpj, usuario, senha, unidade, token } = req.body;
+      
+      const existing = await storage.getSinirConfig();
+      const config: any = {
+        cnpj: cnpj || null,
+        usuario: usuario || null,
+        unidade: unidade || null,
+      };
+      
+      if (senha && senha !== "********") {
+        config.senha = senha;
+      } else if (existing) {
+        config.senha = existing.senha;
+      }
+      
+      if (token && !token.endsWith("...")) {
+        config.token = token;
+      } else if (existing) {
+        config.token = existing.token;
+      }
+      
+      const saved = await storage.saveSinirConfig(config);
+      
+      await storage.createLog({
+        level: 'INFO',
+        category: 'CONFIG',
+        message: 'Configuração SINIR atualizada',
+        details: { cnpj: config.cnpj, usuario: config.usuario }
+      });
+      
+      res.json({ message: "Configuração salva com sucesso", updatedAt: saved.updatedAt });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Import MTR from SINIR into local database
   app.post("/api/sinir/import/:code", async (req, res) => {
     const mtrCode = req.params.code;

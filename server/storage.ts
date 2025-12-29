@@ -1,8 +1,8 @@
 import { db } from "./db";
 import {
-  mtrs, mtrItems, systemLogs,
+  mtrs, mtrItems, systemLogs, sinirConfig,
   type Mtr, type MtrItem, type InsertMtr, type InsertMtrItem, type SystemLog,
-  type UpdateMtrRequest, type LogStats, type MtrWithItems
+  type UpdateMtrRequest, type LogStats, type MtrWithItems, type SinirConfig, type InsertSinirConfig
 } from "@shared/schema";
 import { eq, inArray, desc, sql, and } from "drizzle-orm";
 
@@ -23,6 +23,10 @@ export interface IStorage {
   createLog(log: Omit<SystemLog, "id" | "timestamp">): Promise<SystemLog>;
   getLogs(limit: number, level?: string): Promise<SystemLog[]>;
   getLogStats(): Promise<LogStats>;
+  
+  // SINIR Config
+  getSinirConfig(): Promise<SinirConfig | null>;
+  saveSinirConfig(config: InsertSinirConfig): Promise<SinirConfig>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -173,6 +177,25 @@ export class DatabaseStorage implements IStorage {
       errors: Number(errors.count),
       warnings: Number(warnings.count)
     };
+  }
+  
+  async getSinirConfig(): Promise<SinirConfig | null> {
+    const result = await db.select().from(sinirConfig).limit(1);
+    return result.length > 0 ? result[0] : null;
+  }
+  
+  async saveSinirConfig(config: InsertSinirConfig): Promise<SinirConfig> {
+    const existing = await this.getSinirConfig();
+    if (existing) {
+      const [updated] = await db.update(sinirConfig)
+        .set({ ...config, updatedAt: new Date() })
+        .where(eq(sinirConfig.id, existing.id))
+        .returning();
+      return updated;
+    } else {
+      const [created] = await db.insert(sinirConfig).values(config).returning();
+      return created;
+    }
   }
 }
 
