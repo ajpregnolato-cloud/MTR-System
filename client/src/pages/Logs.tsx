@@ -2,6 +2,7 @@ import { useLogs } from "@/hooks/use-logs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { AlertCircle, Info, XCircle } from "lucide-react";
@@ -25,28 +26,36 @@ export default function Logs() {
     }
   };
 
+  const getLevelLabel = (level: string) => {
+    switch(level) {
+      case 'ERROR': return 'ERRO';
+      case 'WARN': return 'AVISO';
+      default: return 'INFO';
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50/50 p-8 space-y-8">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold font-display text-slate-900">System Logs</h1>
-          <p className="text-slate-500 mt-1">Audit trail of imports, validations, and API interactions.</p>
+          <h1 className="text-3xl font-bold font-display text-slate-900">Logs do Sistema</h1>
+          <p className="text-slate-500 mt-1">Histórico de importações, validações e interações com a API.</p>
         </div>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Recent Activity</CardTitle>
+          <CardTitle>Atividade Recente</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           <ScrollArea className="h-[600px]">
             <Table>
               <TableHeader className="bg-slate-50 sticky top-0">
                 <TableRow>
-                  <TableHead className="w-[180px]">Timestamp</TableHead>
-                  <TableHead className="w-[100px]">Level</TableHead>
-                  <TableHead className="w-[150px]">Category</TableHead>
-                  <TableHead>Message</TableHead>
+                  <TableHead className="w-[180px]">Data/Hora</TableHead>
+                  <TableHead className="w-[100px]">Nível</TableHead>
+                  <TableHead className="w-[150px]">Categoria</TableHead>
+                  <TableHead>Mensagem</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -59,9 +68,9 @@ export default function Logs() {
                 ) : logs?.map((log) => {
                   const Icon = getLevelIcon(log.level || 'INFO');
                   return (
-                    <TableRow key={log.id} className="hover:bg-slate-50/50">
+                    <TableRow key={log.id} className="hover:bg-slate-50/50" data-testid={`row-log-${log.id}`}>
                       <TableCell className="font-mono text-xs text-muted-foreground">
-                        {log.timestamp ? format(new Date(log.timestamp), 'dd/MM/yyyy HH:mm:ss') : '-'}
+                        {log.timestamp ? format(new Date(log.timestamp), "dd/MM/yyyy HH:mm:ss", { locale: ptBR }) : '-'}
                       </TableCell>
                       <TableCell>
                         <span className={cn(
@@ -69,7 +78,7 @@ export default function Logs() {
                           getLevelColor(log.level || 'INFO')
                         )}>
                           <Icon className="w-3 h-3" />
-                          {log.level}
+                          {getLevelLabel(log.level || 'INFO')}
                         </span>
                       </TableCell>
                       <TableCell className="font-medium text-xs text-slate-600">
@@ -86,6 +95,13 @@ export default function Logs() {
                     </TableRow>
                   );
                 })}
+                {!isLoading && (!logs || logs.length === 0) && (
+                  <TableRow>
+                    <TableCell colSpan={4} className="h-32 text-center text-muted-foreground">
+                      Nenhum log encontrado.
+                    </TableCell>
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
           </ScrollArea>

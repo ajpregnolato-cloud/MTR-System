@@ -19,19 +19,28 @@ const icons = {
   PROCESSADO: CheckCircle2,
 };
 
+const labels: Record<Status, string> = {
+  PENDENTE: "Pendente",
+  VALIDO: "Válido",
+  ERRO: "Erro",
+  ENVIADO: "Enviado",
+  PROCESSADO: "Processado",
+};
+
 export function StatusBadge({ status, className }: { status: string | null; className?: string }) {
   const normalizedStatus = (status || "PENDENTE") as Status;
   const Icon = icons[normalizedStatus] || AlertCircle;
   const style = styles[normalizedStatus] || styles.PENDENTE;
+  const label = labels[normalizedStatus] || normalizedStatus;
 
   return (
     <span className={cn(
       "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border shadow-sm",
       style,
       className
-    )}>
+    )} data-testid={`badge-status-${normalizedStatus.toLowerCase()}`}>
       <Icon className="w-3.5 h-3.5" />
-      {normalizedStatus}
+      {label}
     </span>
   );
 }

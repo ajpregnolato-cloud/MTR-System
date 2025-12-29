@@ -3,11 +3,10 @@ import { LayoutDashboard, FileText, Settings, ShieldAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const items = [
-  { label: "Dashboard", href: "/", icon: LayoutDashboard },
-  { label: "Logs & Audit", href: "/logs", icon: FileText },
-  // Placeholders for future expansion
-  { label: "Configuration", href: "/config", icon: Settings, disabled: true },
-  { label: "API Status", href: "/status", icon: ShieldAlert, disabled: true },
+  { label: "Painel Principal", href: "/", icon: LayoutDashboard },
+  { label: "Logs e Auditoria", href: "/logs", icon: FileText },
+  { label: "Configurações", href: "/config", icon: Settings, disabled: true },
+  { label: "Status da API", href: "/status", icon: ShieldAlert, disabled: true },
 ];
 
 export function Sidebar() {
@@ -36,6 +35,7 @@ export function Sidebar() {
                 : "text-muted-foreground hover:bg-slate-100 hover:text-foreground",
               item.disabled && "opacity-50 cursor-not-allowed hover:bg-transparent hover:text-muted-foreground"
             )}
+            data-testid={`link-sidebar-${item.href.replace('/', '') || 'home'}`}
           >
             <item.icon className="w-4 h-4" />
             {item.label}
@@ -45,10 +45,10 @@ export function Sidebar() {
       
       <div className="p-4 border-t">
         <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-          <p className="text-xs font-semibold text-slate-900 mb-1">System Status</p>
+          <p className="text-xs font-semibold text-slate-900 mb-1">Status do Sistema</p>
           <div className="flex items-center gap-2 text-xs text-emerald-600">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            Operational
+            Operacional
           </div>
         </div>
       </div>
