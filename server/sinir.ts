@@ -234,7 +234,8 @@ export class SinirService {
         });
 
         const text = await response.text();
-        console.log(`[SINIR] Raw response (first 500 chars): ${text.substring(0, 500)}`);
+        console.log(`[SINIR] Response status: ${response.status}`);
+        console.log(`[SINIR] Raw response (first 2000 chars): ${text.substring(0, 2000)}`);
         
         // Check if response is HTML (error page)
         if (text.startsWith('<!') || text.startsWith('<html')) {
