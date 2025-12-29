@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button";
 import { useUpdateMtr, useMtr } from "@/hooks/use-mtrs";
 import { Loader2, Save } from "lucide-react";
 
-// Schema for editing items only - we don't edit MTR headers typically
 const editFormSchema = z.object({
   items: z.array(insertMtrItemSchema.pick({ 
     quantity: true, 
@@ -37,7 +36,6 @@ export function MtrEditDialog({ mtrId, open, onOpenChange }: MtrEditDialogProps)
     defaultValues: { items: [] }
   });
 
-  // Reset form when MTR data loads
   useEffect(() => {
     if (mtr) {
       form.reset({
@@ -53,7 +51,6 @@ export function MtrEditDialog({ mtrId, open, onOpenChange }: MtrEditDialogProps)
   const onSubmit = (data: EditFormValues) => {
     if (!mtrId) return;
     
-    // Transform string quantity to number
     const formattedItems = data.items.map(item => ({
       ...item,
       quantity: Number(item.quantity)
@@ -71,10 +68,10 @@ export function MtrEditDialog({ mtrId, open, onOpenChange }: MtrEditDialogProps)
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle className="font-display text-xl">
-            Edit MTR: {mtr?.mtrCode}
+            Editar MTR: {mtr?.mtrCode}
           </DialogTitle>
           <p className="text-sm text-muted-foreground">
-            Update quantities and units for waste items.
+            Atualize as quantidades e unidades dos itens de resíduo.
           </p>
         </DialogHeader>
 
@@ -91,7 +88,7 @@ export function MtrEditDialog({ mtrId, open, onOpenChange }: MtrEditDialogProps)
                     <div className="flex justify-between items-start">
                       <div className="space-y-1">
                         <p className="font-medium text-sm">{item.description}</p>
-                        <p className="text-xs text-muted-foreground">Code: {item.code}</p>
+                        <p className="text-xs text-muted-foreground">Código: {item.code}</p>
                       </div>
                     </div>
                     
@@ -101,14 +98,14 @@ export function MtrEditDialog({ mtrId, open, onOpenChange }: MtrEditDialogProps)
                         name={`items.${index}.quantity`}
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel className="text-xs">Quantity</FormLabel>
+                            <FormLabel className="text-xs">Quantidade</FormLabel>
                             <FormControl>
                               <Input 
                                 type="number" 
                                 step="0.001" 
                                 {...field} 
-                                // Ensure value is handled as string/number correctly for input
                                 value={field.value?.toString() ?? ''}
+                                data-testid={`input-quantity-${item.id}`}
                               />
                             </FormControl>
                             <FormMessage />
@@ -121,9 +118,9 @@ export function MtrEditDialog({ mtrId, open, onOpenChange }: MtrEditDialogProps)
                         name={`items.${index}.unit`}
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel className="text-xs">Unit</FormLabel>
+                            <FormLabel className="text-xs">Unidade</FormLabel>
                             <FormControl>
-                              <Input {...field} value={field.value || ''} />
+                              <Input {...field} value={field.value || ''} data-testid={`input-unit-${item.id}`} />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -135,17 +132,18 @@ export function MtrEditDialog({ mtrId, open, onOpenChange }: MtrEditDialogProps)
               </div>
 
               <div className="flex justify-end gap-3 pt-4 border-t">
-                <Button variant="outline" type="button" onClick={() => onOpenChange(false)}>
-                  Cancel
+                <Button variant="outline" type="button" onClick={() => onOpenChange(false)} data-testid="button-cancel-edit">
+                  Cancelar
                 </Button>
                 <Button 
                   type="submit" 
                   disabled={updateMtr.isPending}
                   className="bg-primary hover:bg-primary/90 text-white"
+                  data-testid="button-save-mtr"
                 >
                   {updateMtr.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   <Save className="mr-2 h-4 w-4" />
-                  Save Changes
+                  Salvar Alterações
                 </Button>
               </div>
             </form>
