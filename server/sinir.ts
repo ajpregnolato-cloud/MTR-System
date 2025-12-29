@@ -108,28 +108,54 @@ export class SinirService {
     }
   }
 
+  // Helper to map unit text to SINIR unit code
+  private getUnitCode(unitText: string | null): number {
+    if (!unitText) return 1; // Default to Tonelada
+    const normalized = unitText.toLowerCase().trim();
+    const unitMap: Record<string, number> = {
+      'tonelada': 1,
+      'kg': 2,
+      'quilograma': 2,
+      'litro': 21,
+      'lt': 21,
+      'm³': 20,
+      'm3': 20,
+      'unidade': 22,
+      'un': 22,
+    };
+    return unitMap[normalized] || 1;
+  }
+
   // Receive MTR in batch - Endpoint: receberManifestoLote
-  async receiveMtrBatch(mtrs: MtrWithItems[]): Promise<{ success: boolean; results: any[] }> {
+  // According to SINIR Manual section 14
+  async receiveMtrBatch(mtrs: MtrWithItems[]): Promise<{ success: boolean; results: any[]; details?: any }> {
     if (!this.token) {
       const authenticated = await this.authenticate();
       if (!authenticated) {
-        return { success: false, results: [{ error: "Authentication failed" }] };
+        return { success: false, results: [{ error: "Falha na autenticação" }] };
       }
     }
 
+    // Build payload according to SINIR manual
     const payload = {
       listaManifesto: mtrs.map(mtr => ({
         codigoManifesto: mtr.mtrCode,
-        dataRecebimento: new Date().getTime(), // Timestamp format
+        dataRecebimento: new Date().getTime(), // Timestamp em milissegundos
         recebido: true,
         nomeResponsavelRecebimento: "Sistema MTR Receiver",
-        observacoes: "Recebido via integração automática",
-        listaManifestoResiduo: mtr.items.map(item => ({
-          marQuantidade: Number(item.quantity),
-          // Additional fields would come from the residue reference tables
+        observacoes: `Recebido em lote via integração - ${new Date().toLocaleDateString('pt-BR')}`,
+        listaManifestoResiduo: mtr.items.map((item, index) => ({
+          // marQuantidade is the quantity actually received
+          marQuantidade: Number(item.quantity) || 0,
+          // Include IBAMA residue code if available (extracted from description)
+          resCodigoIbama: item.code?.match(/^\d{6}/)?.[0] || undefined,
+          // Unit code from reference table
+          uniCodigo: this.getUnitCode(item.unit),
         })),
       })),
     };
+
+    console.log("[SINIR] Sending batch receive payload:", JSON.stringify(payload, null, 2));
 
     try {
       const response = await fetch(`${this.baseUrl}/receberManifestoLote`, {
@@ -143,12 +169,14 @@ export class SinirService {
 
       const data: SinirManifestoResponse = await response.json();
 
+      console.log("[SINIR] Batch receive response:", JSON.stringify(data, null, 2));
+
       if (data.erro) {
         console.error("[SINIR] Batch receive error:", data.mensagem);
-        return { success: false, results: [{ error: data.mensagem }] };
+        return { success: false, results: [{ error: data.mensagem }], details: data };
       }
 
-      return { success: true, results: data.objetoResposta || [] };
+      return { success: true, results: data.objetoResposta || [], details: data };
     } catch (error: any) {
       console.error("[SINIR] Batch receive error:", error.message);
       return { success: false, results: [{ error: error.message }] };
