@@ -9,6 +9,35 @@ import { SinirService } from "./sinir"; // We'll create this
 
 const upload = multer({ storage: multer.memoryStorage() });
 
+// Helper to parse Excel dates (can be string or number)
+function parseExcelDate(value: any): Date | undefined {
+  if (!value) return undefined;
+  
+  // If already a Date
+  if (value instanceof Date) return value;
+  
+  // If string, try parsing
+  if (typeof value === 'string') {
+    // Try ISO format or Brazilian format (dd/mm/yyyy)
+    const parts = value.split('/');
+    if (parts.length === 3) {
+      const [day, month, year] = parts;
+      return new Date(Number(year), Number(month) - 1, Number(day));
+    }
+    const parsed = new Date(value);
+    if (!isNaN(parsed.getTime())) return parsed;
+  }
+  
+  // If number (Excel serial date)
+  if (typeof value === 'number') {
+    // Excel dates are days since 1900-01-01 (with a bug for 1900 leap year)
+    const excelEpoch = new Date(1899, 11, 30);
+    return new Date(excelEpoch.getTime() + value * 24 * 60 * 60 * 1000);
+  }
+  
+  return undefined;
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -21,10 +50,10 @@ export async function registerRoutes(
         return res.status(400).json({ message: "No file uploaded", imported: 0, skipped: 0, errors: [] });
       }
 
-      const workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
+      const workbook = xlsx.read(req.file.buffer, { type: 'buffer', cellDates: true });
       const sheetName = workbook.SheetNames[0];
       const sheet = workbook.Sheets[sheetName];
-      const data = xlsx.utils.sheet_to_json<any>(sheet);
+      const data = xlsx.utils.sheet_to_json<any>(sheet, { raw: false, dateNF: 'yyyy-mm-dd' });
 
       let imported = 0;
       let skipped = 0;
@@ -63,7 +92,7 @@ export async function registerRoutes(
           await storage.createMtr({
             mtrCode: String(mtrCode),
             manifestType: row["Tipo Manifesto"],
-            emissionDate: row["Data de Emissão"] ? new Date(row["Data de Emissão"]) : undefined,
+            emissionDate: row["Data de Emissão"] ? parseExcelDate(row["Data de Emissão"]) : undefined,
             generatorName: row["Gerador (Nome)"],
             generatorCnpj: row["Gerador (CNPJ/CPF)"],
             transporterName: row["Transportador (Nome)"],
@@ -163,17 +192,18 @@ export async function registerRoutes(
       // Rule 1: Quantity > 0
       mtr.items.forEach(item => {
         if (!item.quantity || Number(item.quantity) <= 0) {
-          validationErrors.push(`Item ${item.code}: Quantity must be > 0`);
+          validationErrors.push(`Item ${item.code}: Quantidade deve ser > 0`);
         }
         // Rule 2: Valid Unit (Simplified check)
         if (!item.unit) {
-          validationErrors.push(`Item ${item.code}: Unit is missing`);
+          validationErrors.push(`Item ${item.code}: Unidade não informada`);
         }
       });
 
-      // Rule 3: SALVO (Already filtered on import, but check for consistency)
-      if (mtr.sinirStatus !== "SALVO") {
-        validationErrors.push("MTR Status in SINIR is not SALVO");
+      // Rule 3: SALVO (case-insensitive check)
+      const normalizedSinirStatus = String(mtr.sinirStatus || "").toUpperCase().trim();
+      if (normalizedSinirStatus !== "SALVO") {
+        validationErrors.push("Status do MTR no SINIR não é SALVO");
       }
 
       const isValid = validationErrors.length === 0;
