@@ -173,29 +173,50 @@ export class SinirService {
 
     console.log("[SINIR] Sending batch receive payload:", JSON.stringify(payload, null, 2));
 
-    try {
-      const response = await fetch(`${this.baseUrl}/receberManifestoLote`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': this.token!,
-        },
-        body: JSON.stringify(payload),
-      });
+    // Try both API endpoints
+    const endpoints = [
+      `${this.legacyBaseUrl}/receberManifestoLote`,
+      `${this.baseUrl}/receberManifestoLote`,
+    ];
 
-      const data: SinirManifestoResponse = await response.json();
-      console.log("[SINIR] Batch receive response:", JSON.stringify(data, null, 2));
+    for (const endpoint of endpoints) {
+      try {
+        console.log(`[SINIR] Trying receive endpoint: ${endpoint}`);
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': this.token!,
+          },
+          body: JSON.stringify(payload),
+        });
 
-      if (data.erro) {
-        console.error("[SINIR] Batch receive error:", data.mensagem);
-        return { success: false, results: [{ error: data.mensagem }], details: data };
+        const text = await response.text();
+        console.log(`[SINIR] Raw response (first 500 chars): ${text.substring(0, 500)}`);
+        
+        // Check if response is HTML (error page)
+        if (text.startsWith('<!') || text.startsWith('<html')) {
+          console.log(`[SINIR] Endpoint returned HTML, trying next...`);
+          continue;
+        }
+
+        const data: SinirManifestoResponse = JSON.parse(text);
+        console.log("[SINIR] Batch receive response:", JSON.stringify(data, null, 2));
+
+        if (data.erro) {
+          console.error("[SINIR] Batch receive error:", data.mensagem);
+          return { success: false, results: [{ error: data.mensagem }], details: data };
+        }
+
+        return { success: true, results: data.objetoResposta || [], details: data };
+      } catch (error: any) {
+        console.log(`[SINIR] Endpoint failed: ${error.message}`);
+        continue;
       }
-
-      return { success: true, results: data.objetoResposta || [], details: data };
-    } catch (error: any) {
-      console.error("[SINIR] Batch receive error:", error.message);
-      return { success: false, results: [{ error: error.message }] };
     }
+
+    console.error("[SINIR] All receive endpoints failed");
+    return { success: false, results: [{ error: "Todos os endpoints falharam" }] };
   }
 
   // Send single MTR for receiving
