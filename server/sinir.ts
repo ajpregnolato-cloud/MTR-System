@@ -204,6 +204,16 @@ export class SinirService {
     return result.success;
   }
 
+  // Send single MTR with full response details
+  async sendMtrWithDetails(mtr: MtrWithItems): Promise<{ success: boolean; message?: string; details?: any }> {
+    const result = await this.receiveMtrBatch([mtr]);
+    return {
+      success: result.success,
+      message: result.results?.[0]?.error,
+      details: result.details,
+    };
+  }
+
   // Download MTR PDF - Endpoint: /downloadManifesto/{manNumero}
   async downloadMtrPdf(mtrCode: string): Promise<Buffer | null> {
     if (!this.token) {

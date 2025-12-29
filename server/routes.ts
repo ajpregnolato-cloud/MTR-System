@@ -266,10 +266,23 @@ export async function registerRoutes(
           if (!mtr) continue;
 
           if (mode === 'REAL') {
-             await sinir.sendMtr(mtr);
+            const result = await sinir.sendMtrWithDetails(mtr);
+            
+            await storage.createLog({
+              level: result.success ? 'INFO' : 'ERROR',
+              category: 'SINIR',
+              message: `MTR ${mtr.mtrCode}: ${result.success ? 'Enviado com sucesso' : 'Falha no envio'}`,
+              details: { mtrCode: mtr.mtrCode, response: result.details }
+            });
+
+            if (!result.success) {
+              failed++;
+              await storage.updateMtrStatus(id, "ERRO", false, [result.message || 'Erro ao enviar para SINIR']);
+              continue;
+            }
           } else {
-             // Simulated
-             await new Promise(r => setTimeout(r, 500)); // Fake latency
+            // Simulated
+            await new Promise(r => setTimeout(r, 500)); // Fake latency
           }
 
           await storage.updateMtrStatus(id, "ENVIADO", true, []);
