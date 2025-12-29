@@ -143,7 +143,7 @@ export class SinirService {
         dataRecebimento: new Date().getTime(), // Timestamp em milissegundos
         recebido: true,
         nomeResponsavelRecebimento: "Sistema MTR Receiver",
-        observacoes: `Recebido em lote via integração - ${new Date().toLocaleDateString('pt-BR')}`,
+        observacoes: mtr.observations || `Recebido em lote via integração - ${new Date().toLocaleDateString('pt-BR')}`,
         listaManifestoResiduo: mtr.items.map((item, index) => ({
           // marQuantidade is the quantity actually received
           marQuantidade: Number(item.quantity) || 0,

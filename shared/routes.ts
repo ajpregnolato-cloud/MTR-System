@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { insertMtrSchema, mtrs, systemLogs, mtrItems } from './schema';
+export type { UpdateMtrRequest, BatchProcessRequest } from './schema';
 
 // Shared Error Schemas
 export const errorSchemas = {

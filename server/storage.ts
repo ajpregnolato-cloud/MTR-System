@@ -95,9 +95,16 @@ export class DatabaseStorage implements IStorage {
       if (items && items.length > 0) {
         for (const item of items) {
           if (item.id) {
-            await tx.update(mtrItems)
-              .set(item)
-              .where(eq(mtrItems.id, item.id));
+            const { id: itemId, quantity, ...rest } = item;
+            const itemUpdates: Record<string, any> = { ...rest };
+            if (quantity !== undefined) {
+              itemUpdates.quantity = String(quantity);
+            }
+            if (Object.keys(itemUpdates).length > 0) {
+              await tx.update(mtrItems)
+                .set(itemUpdates)
+                .where(eq(mtrItems.id, itemId));
+            }
           }
         }
       }
