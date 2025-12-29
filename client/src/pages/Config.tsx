@@ -156,10 +156,10 @@ export default function Config() {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="usuario">Usuário</Label>
+                <Label htmlFor="usuario">Usuário (CPF)</Label>
                 <Input
                   id="usuario"
-                  placeholder="usuario@email.com"
+                  placeholder="000.000.000-00"
                   {...form.register("usuario")}
                   data-testid="input-config-usuario"
                 />
