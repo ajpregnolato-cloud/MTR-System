@@ -100,11 +100,15 @@ export class SinirService {
     try {
       // Try new API endpoint first
       console.log("[SINIR] Attempting authentication with new API...");
-      const authPayload = {
+      const { unidade } = credentials;
+      const authPayload: any = {
         cpfCnpj: cnpj,
         usuario: usuario,
         senha: senha,
       };
+      if (unidade) {
+        authPayload.unidade = unidade;
+      }
       console.log("[SINIR] Auth payload:", JSON.stringify({ ...authPayload, senha: "***" }));
       
       const response = await fetch(`${this.baseUrl}/autenticar`, {
