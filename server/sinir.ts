@@ -267,6 +267,95 @@ export class SinirService {
     }
   }
 
+  // Fetch MTR details by code - tries multiple endpoints
+  async getMtrByCode(mtrCode: string): Promise<any | null> {
+    if (!this.token) {
+      const authenticated = await this.authenticate();
+      if (!authenticated) return null;
+    }
+
+    try {
+      // Try the retornaManifesto endpoint
+      const response = await fetch(`${this.baseUrl}/retornaManifesto/${mtrCode}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': this.token!,
+        },
+      });
+
+      const data: SinirManifestoResponse = await response.json();
+      console.log("[SINIR] Fetch MTR response:", JSON.stringify(data, null, 2));
+
+      if (data.erro) {
+        console.error(`[SINIR] Error fetching MTR ${mtrCode}:`, data.mensagem);
+        return null;
+      }
+
+      return data.objetoResposta;
+    } catch (error: any) {
+      console.error(`[SINIR] Error fetching MTR ${mtrCode}:`, error.message);
+      return null;
+    }
+  }
+
+  // Get list of units
+  async getUnits(): Promise<any[]> {
+    if (!this.token) await this.authenticate();
+    
+    try {
+      const response = await fetch(`${this.baseUrl}/retornaListaUnidade`, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': this.token!,
+        },
+      });
+      const data = await response.json();
+      return data.objetoResposta || [];
+    } catch (error) {
+      console.error("[SINIR] Error fetching units:", error);
+      return [];
+    }
+  }
+
+  // Get list of treatments
+  async getTreatments(): Promise<any[]> {
+    if (!this.token) await this.authenticate();
+    
+    try {
+      const response = await fetch(`${this.baseUrl}/retornaListaTratamento`, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': this.token!,
+        },
+      });
+      const data = await response.json();
+      return data.objetoResposta || [];
+    } catch (error) {
+      console.error("[SINIR] Error fetching treatments:", error);
+      return [];
+    }
+  }
+
+  // Get list of residue classes
+  async getResidueClasses(): Promise<any[]> {
+    if (!this.token) await this.authenticate();
+    
+    try {
+      const response = await fetch(`${this.baseUrl}/retornaListaClasse`, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': this.token!,
+        },
+      });
+      const data = await response.json();
+      return data.objetoResposta || [];
+    } catch (error) {
+      console.error("[SINIR] Error fetching classes:", error);
+      return [];
+    }
+  }
+
   // Test connection - tries authentication and a simple API call
   async testConnection(): Promise<{ success: boolean; message: string; details?: any }> {
     try {

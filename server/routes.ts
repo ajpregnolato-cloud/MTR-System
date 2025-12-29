@@ -355,5 +355,71 @@ export async function registerRoutes(
     res.json(classes);
   });
 
+  // Import MTR from SINIR into local database
+  app.post("/api/sinir/import/:code", async (req, res) => {
+    const mtrCode = req.params.code;
+    
+    try {
+      // Check if already exists
+      const existing = await storage.getMtrByCode(mtrCode);
+      if (existing) {
+        return res.status(400).json({ message: "MTR já existe no sistema" });
+      }
+
+      // Fetch from SINIR
+      const sinir = new SinirService();
+      const sinirData = await sinir.getMtrByCode(mtrCode);
+      
+      if (!sinirData) {
+        return res.status(404).json({ message: "MTR não encontrado no SINIR" });
+      }
+
+      // Map SINIR data to local schema
+      const mtrData = {
+        mtrCode: sinirData.manNumero || mtrCode,
+        manifestType: sinirData.tipoManifesto || "MTR",
+        emissionDate: sinirData.dataEmissao ? new Date(sinirData.dataEmissao) : new Date(),
+        generatorName: sinirData.geradorNome || sinirData.gerNome,
+        generatorCnpj: sinirData.geradorCnpj || sinirData.gerCpfCnpj,
+        transporterName: sinirData.transportadorNome || sinirData.traNome,
+        transporterCnpj: sinirData.transportadorCnpj || sinirData.traCpfCnpj,
+        receiverName: sinirData.destinadorNome || sinirData.desNome,
+        receiverCnpj: sinirData.destinadorCnpj || sinirData.desCpfCnpj,
+        sinirStatus: sinirData.situacao || "SALVO",
+        systemStatus: "PENDENTE" as const,
+      };
+
+      // Map residues
+      const items = (sinirData.listaManifestoResiduos || sinirData.residuos || []).map((r: any) => ({
+        code: r.resCodigoIbama || r.resCodigo,
+        description: r.resDescricao || r.descricao,
+        quantity: String(r.marQuantidade || r.quantidade || 0),
+        unit: r.uniDescricao || r.unidade || "Tonelada",
+        treatment: r.traDescricao || r.tratamento,
+        class: r.claDescricao || r.classe,
+      }));
+
+      // Create in database
+      const newMtr = await storage.createMtr(mtrData, items);
+
+      await storage.createLog({
+        level: 'INFO',
+        category: 'SINIR',
+        message: `MTR ${mtrCode} importado do SINIR`,
+        details: { mtrId: newMtr.id }
+      });
+
+      res.json({ message: `MTR ${mtrCode} importado com sucesso`, mtr: newMtr });
+    } catch (error: any) {
+      await storage.createLog({
+        level: 'ERROR',
+        category: 'SINIR',
+        message: `Erro ao importar MTR ${mtrCode}`,
+        details: { error: error.message }
+      });
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   return httpServer;
 }

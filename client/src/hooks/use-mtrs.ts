@@ -194,3 +194,56 @@ export function useTestSinirConnection() {
     }
   });
 }
+
+export function useFetchMtrFromSinir() {
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async (mtrCode: string) => {
+      const res = await fetch(`/api/sinir/mtr/${encodeURIComponent(mtrCode)}`, { credentials: "include" });
+      if (!res.ok) {
+        if (res.status === 404) throw new Error("MTR não encontrado no SINIR");
+        throw new Error("Erro ao buscar MTR");
+      }
+      return res.json();
+    },
+    onSuccess: (data) => {
+      toast({ 
+        title: "MTR Encontrado", 
+        description: `Manifesto ${data.manNumero || 'encontrado'} carregado do SINIR` 
+      });
+    },
+    onError: (err) => {
+      toast({ variant: "destructive", title: "Erro", description: err.message });
+    }
+  });
+}
+
+export function useImportMtrFromSinir() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async (mtrCode: string) => {
+      const res = await fetch(`/api/sinir/import/${encodeURIComponent(mtrCode)}`, { 
+        method: 'POST',
+        credentials: "include" 
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || "Erro ao importar MTR");
+      }
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: [api.mtrs.list.path] });
+      toast({ 
+        title: "MTR Importado", 
+        description: data.message || "Manifesto importado com sucesso" 
+      });
+    },
+    onError: (err) => {
+      toast({ variant: "destructive", title: "Erro", description: err.message });
+    }
+  });
+}
