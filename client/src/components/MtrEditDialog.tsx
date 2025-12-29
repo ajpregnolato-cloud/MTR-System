@@ -6,11 +6,13 @@ import { z } from "zod";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { useUpdateMtr, useMtr } from "@/hooks/use-mtrs";
 import { Loader2, Save } from "lucide-react";
 
 const editFormSchema = z.object({
+  observations: z.string().optional(),
   items: z.array(insertMtrItemSchema.pick({ 
     quantity: true, 
     unit: true 
@@ -33,12 +35,13 @@ export function MtrEditDialog({ mtrId, open, onOpenChange }: MtrEditDialogProps)
 
   const form = useForm<EditFormValues>({
     resolver: zodResolver(editFormSchema),
-    defaultValues: { items: [] }
+    defaultValues: { observations: "", items: [] }
   });
 
   useEffect(() => {
     if (mtr) {
       form.reset({
+        observations: mtr.observations || "",
         items: mtr.items.map(item => ({
           id: item.id,
           quantity: item.quantity,
@@ -56,7 +59,11 @@ export function MtrEditDialog({ mtrId, open, onOpenChange }: MtrEditDialogProps)
       quantity: Number(item.quantity)
     }));
 
-    updateMtr.mutate({ id: mtrId, items: formattedItems }, {
+    updateMtr.mutate({ 
+      id: mtrId, 
+      observations: data.observations,
+      items: formattedItems 
+    }, {
       onSuccess: () => onOpenChange(false)
     });
   };
@@ -82,7 +89,29 @@ export function MtrEditDialog({ mtrId, open, onOpenChange }: MtrEditDialogProps)
         ) : (
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              <FormField
+                control={form.control}
+                name="observations"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Observações (enviado ao SINIR)</FormLabel>
+                    <FormControl>
+                      <Textarea 
+                        placeholder="Digite as observações que serão enviadas junto com o recebimento do MTR..."
+                        className="resize-none"
+                        rows={3}
+                        {...field} 
+                        value={field.value || ''}
+                        data-testid="input-observations"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
               <div className="space-y-4">
+                <p className="text-sm font-medium text-muted-foreground">Itens de Resíduo</p>
                 {mtr?.items.map((item, index) => (
                   <div key={item.id} className="p-4 rounded-lg border bg-muted/20 space-y-3">
                     <div className="flex justify-between items-start">

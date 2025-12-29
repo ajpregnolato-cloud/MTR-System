@@ -28,6 +28,9 @@ export const mtrs = pgTable("mtrs", {
   sinirStatus: text("sinir_status"), // Situação (from Excel)
   systemStatus: mtrStatusEnum("system_status").default("PENDENTE"), // Internal status
   
+  // Observations for SINIR API
+  observations: text("observations"), // Observações para envio ao SINIR
+  
   // Validation flags
   isValid: boolean("is_valid").default(false),
   validationErrors: jsonb("validation_errors").$type<string[]>(),
@@ -92,12 +95,18 @@ export const insertLogSchema = createInsertSchema(systemLogs).omit({
 export type Mtr = typeof mtrs.$inferSelect;
 export type MtrItem = typeof mtrItems.$inferSelect;
 export type SystemLog = typeof systemLogs.$inferSelect;
+export type InsertMtr = z.infer<typeof insertMtrSchema>;
+export type InsertMtrItem = z.infer<typeof insertMtrItemSchema>;
 
 export type MtrWithItems = Mtr & { items: MtrItem[] };
 
-// Request types
+// Request types - includes observations and properly typed items with id
 export type UpdateMtrRequest = Partial<z.infer<typeof insertMtrSchema>> & {
-  items?: Partial<z.infer<typeof insertMtrItemSchema>>[];
+  items?: Array<{
+    id: number;
+    quantity?: number | string;
+    unit?: string | null;
+  }>;
 };
 
 export type BatchProcessRequest = {
