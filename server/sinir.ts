@@ -274,29 +274,46 @@ export class SinirService {
       if (!authenticated) return null;
     }
 
-    try {
-      // Try the retornaManifesto endpoint
-      const response = await fetch(`${this.baseUrl}/retornaManifesto/${mtrCode}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': this.token!,
-        },
-      });
+    // Try different API endpoints
+    const endpoints = [
+      `${this.legacyBaseUrl}/retornaManifesto/${mtrCode}`,
+      `${this.baseUrl}/retornaManifesto/${mtrCode}`,
+      `${this.legacyBaseUrl}/consultaManifesto/${mtrCode}`,
+    ];
 
-      const data: SinirManifestoResponse = await response.json();
-      console.log("[SINIR] Fetch MTR response:", JSON.stringify(data, null, 2));
+    for (const endpoint of endpoints) {
+      try {
+        console.log(`[SINIR] Trying endpoint: ${endpoint}`);
+        const response = await fetch(endpoint, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': this.token!,
+          },
+        });
 
-      if (data.erro) {
-        console.error(`[SINIR] Error fetching MTR ${mtrCode}:`, data.mensagem);
-        return null;
+        const text = await response.text();
+        
+        // Check if response is HTML (error page)
+        if (text.startsWith('<!') || text.startsWith('<html')) {
+          console.log(`[SINIR] Endpoint returned HTML, trying next...`);
+          continue;
+        }
+
+        const data: SinirManifestoResponse = JSON.parse(text);
+        console.log("[SINIR] Fetch MTR response:", JSON.stringify(data, null, 2));
+
+        if (!data.erro && data.objetoResposta) {
+          return data.objetoResposta;
+        }
+      } catch (error: any) {
+        console.log(`[SINIR] Endpoint failed: ${error.message}`);
+        continue;
       }
-
-      return data.objetoResposta;
-    } catch (error: any) {
-      console.error(`[SINIR] Error fetching MTR ${mtrCode}:`, error.message);
-      return null;
     }
+
+    console.error(`[SINIR] Could not fetch MTR ${mtrCode} from any endpoint`);
+    return null;
   }
 
   // Get list of units
