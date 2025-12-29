@@ -24,7 +24,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { MetricCard } from "@/components/MetricCard";
 import { StatusBadge } from "@/components/StatusBadge";
 import { MtrEditDialog } from "@/components/MtrEditDialog";
-import { useMtrs, useUploadSinir, useBatchProcess, useDeleteMtr, useValidateMtrs, useTestSinirConnection } from "@/hooks/use-mtrs";
+import { useMtrs, useUploadSinir, useBatchProcess, useDeleteMtr, useValidateMtrs, useTestSinirConnection, useImportMtrFromSinir } from "@/hooks/use-mtrs";
 import { useLogStats } from "@/hooks/use-logs";
 
 export default function Dashboard() {
@@ -32,6 +32,7 @@ export default function Dashboard() {
   const [search, setSearch] = useState("");
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [mtrSearchCode, setMtrSearchCode] = useState("");
 
   const { data: mtrsData, isLoading } = useMtrs({ page, limit: 10, search });
   const { data: stats } = useLogStats();
@@ -41,6 +42,7 @@ export default function Dashboard() {
   const deleteMutation = useDeleteMtr();
   const validateMutation = useValidateMtrs();
   const testSinirMutation = useTestSinirConnection();
+  const importFromSinirMutation = useImportMtrFromSinir();
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -118,6 +120,44 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* Buscar MTR Individual do SINIR */}
+      <Card>
+        <CardContent className="pt-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+            <div className="flex-1">
+              <p className="text-sm font-medium mb-1">Buscar MTR diretamente do SINIR</p>
+              <p className="text-xs text-muted-foreground">Digite o número do MTR para importar do sistema SINIR</p>
+            </div>
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <Input
+                placeholder="Ex: 123456789012"
+                value={mtrSearchCode}
+                onChange={(e) => setMtrSearchCode(e.target.value)}
+                className="w-full sm:w-48"
+                data-testid="input-mtr-search"
+              />
+              <Button 
+                onClick={() => {
+                  if (mtrSearchCode.trim()) {
+                    importFromSinirMutation.mutate(mtrSearchCode.trim());
+                    setMtrSearchCode("");
+                  }
+                }}
+                disabled={!mtrSearchCode.trim() || importFromSinirMutation.isPending}
+                data-testid="button-import-mtr"
+              >
+                {importFromSinirMutation.isPending ? (
+                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Search className="mr-2 h-4 w-4" />
+                )}
+                Importar
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Cards de Métricas */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
