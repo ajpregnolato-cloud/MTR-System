@@ -63,11 +63,17 @@ export class SinirService {
   async authenticate(): Promise<boolean> {
     const { usuario, senha, preToken } = this.getCredentials();
     
-    // If we have a pre-generated token, use it
+    // If we have a pre-generated token, validate it's a proper JWT (has 2 dots)
     if (preToken) {
-      this.token = preToken.startsWith('Bearer ') ? preToken : `Bearer ${preToken}`;
-      console.log("[SINIR] Using pre-configured token");
-      return true;
+      const tokenValue = preToken.startsWith('Bearer ') ? preToken.substring(7) : preToken;
+      const dotCount = (tokenValue.match(/\./g) || []).length;
+      if (dotCount === 2) {
+        this.token = preToken.startsWith('Bearer ') ? preToken : `Bearer ${preToken}`;
+        console.log("[SINIR] Using pre-configured JWT token");
+        return true;
+      } else {
+        console.log("[SINIR] Pre-configured token is not a valid JWT (needs 2 dots), attempting fresh authentication...");
+      }
     }
 
     if (!usuario || !senha) {
