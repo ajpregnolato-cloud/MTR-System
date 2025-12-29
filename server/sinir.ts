@@ -1,4 +1,5 @@
-import { MtrWithItems } from "@shared/schema";
+import { MtrWithItems, sinirConfig } from "@shared/schema";
+import { db } from "./db";
 
 // SINIR API Integration based on official Swagger documentation
 // API Docs: https://admin.sinir.gov.br/api/swagger-ui.html
@@ -49,19 +50,34 @@ export class SinirService {
 
   constructor() {}
 
-  // Get credentials from environment
-  private getCredentials() {
+  // Get credentials from database first, fallback to environment
+  private async getCredentials() {
+    // Try database config first
+    const dbConfig = await db.select().from(sinirConfig).limit(1);
+    if (dbConfig.length > 0) {
+      const config = dbConfig[0];
+      return {
+        cnpj: config.cnpj?.replace(/\D/g, '') || undefined,
+        senha: config.senha || undefined,
+        usuario: config.usuario || undefined,
+        preToken: config.token || undefined,
+        unidade: config.unidade || undefined,
+      };
+    }
+    
+    // Fallback to environment variables
     const cnpj = process.env.SINIR_CNPJ?.replace(/\D/g, '');
     const senha = process.env.SINIR_PASSWORD;
     const usuario = process.env.SINIR_USER;
     const preToken = process.env.SINIR_TOKEN;
     
-    return { cnpj, senha, usuario, preToken };
+    return { cnpj, senha, usuario, preToken, unidade: undefined };
   }
 
   // Authenticate with SINIR API - New endpoint: /autenticar
   async authenticate(): Promise<boolean> {
-    const { usuario, senha, preToken } = this.getCredentials();
+    const credentials = await this.getCredentials();
+    const { usuario, senha, preToken, cnpj } = credentials;
     
     // If we have a pre-generated token, validate it's a proper JWT (has 2 dots)
     if (preToken) {
@@ -75,24 +91,28 @@ export class SinirService {
         console.log("[SINIR] Pre-configured token is not a valid JWT (needs 2 dots), attempting fresh authentication...");
       }
     }
-
-    if (!usuario || !senha) {
-      console.error("[SINIR] Missing credentials (SINIR_USER or SINIR_PASSWORD)");
+    
+    if (!usuario || !senha || !cnpj) {
+      console.error("[SINIR] Missing credentials (usuario, senha, or cnpj)");
       return false;
     }
 
     try {
       // Try new API endpoint first
       console.log("[SINIR] Attempting authentication with new API...");
+      const authPayload = {
+        cpfCnpj: cnpj,
+        usuario: usuario,
+        senha: senha,
+      };
+      console.log("[SINIR] Auth payload:", JSON.stringify({ ...authPayload, senha: "***" }));
+      
       const response = await fetch(`${this.baseUrl}/autenticar`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          usuario: usuario,
-          senha: senha,
-        }),
+        body: JSON.stringify(authPayload),
       });
 
       const data: SinirAuthResponse = await response.json();
@@ -456,12 +476,12 @@ export class SinirService {
   // Test connection - tries authentication and a simple API call
   async testConnection(): Promise<{ success: boolean; message: string; details?: any }> {
     try {
-      const { usuario, preToken } = this.getCredentials();
+      const { usuario, preToken, cnpj } = await this.getCredentials();
       
       if (!usuario && !preToken) {
         return { 
           success: false, 
-          message: "Credenciais não configuradas (SINIR_USER, SINIR_PASSWORD ou SINIR_TOKEN)" 
+          message: "Credenciais não configuradas. Preencha as configurações em Configurações > Credenciais SINIR" 
         };
       }
 
@@ -473,7 +493,10 @@ export class SinirService {
       return { 
         success: true, 
         message: "Conexão com SINIR API estabelecida com sucesso!",
-        details: { tokenConfigured: !!this.token }
+        details: { 
+          tokenConfigured: !!this.token,
+          cnpj: cnpj ? `${cnpj.substring(0, 4)}...` : 'não configurado'
+        }
       };
     } catch (error: any) {
       return { success: false, message: `Erro: ${error.message}` };

@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 const items = [
   { label: "Painel Principal", href: "/", icon: LayoutDashboard },
   { label: "Logs e Auditoria", href: "/logs", icon: FileText },
-  { label: "Configurações", href: "/config", icon: Settings, disabled: true },
+  { label: "Configurações", href: "/config", icon: Settings },
   { label: "Status da API", href: "/status", icon: ShieldAlert, disabled: true },
 ];
 

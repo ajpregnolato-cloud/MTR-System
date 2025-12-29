@@ -63,6 +63,17 @@ export const systemLogs = pgTable("system_logs", {
   timestamp: timestamp("timestamp").defaultNow(),
 });
 
+// SINIR Configuration
+export const sinirConfig = pgTable("sinir_config", {
+  id: serial("id").primaryKey(),
+  cnpj: text("cnpj"),
+  usuario: text("usuario"),
+  senha: text("senha"),
+  unidade: text("unidade"),
+  token: text("token"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // === RELATIONS ===
 export const mtrsRelations = relations(mtrs, ({ many }) => ({
   items: many(mtrItems),
@@ -91,10 +102,17 @@ export const insertLogSchema = createInsertSchema(systemLogs).omit({
   timestamp: true
 });
 
+export const insertSinirConfigSchema = createInsertSchema(sinirConfig).omit({
+  id: true,
+  updatedAt: true
+});
+
 // === API TYPES ===
 export type Mtr = typeof mtrs.$inferSelect;
 export type MtrItem = typeof mtrItems.$inferSelect;
 export type SystemLog = typeof systemLogs.$inferSelect;
+export type SinirConfig = typeof sinirConfig.$inferSelect;
+export type InsertSinirConfig = z.infer<typeof insertSinirConfigSchema>;
 export type InsertMtr = z.infer<typeof insertMtrSchema>;
 export type InsertMtrItem = z.infer<typeof insertMtrItemSchema>;
 
