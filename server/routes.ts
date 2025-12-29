@@ -38,10 +38,10 @@ export async function registerRoutes(
       });
 
       for (const row of data) {
-        // Business Rule: ONLY "SALVO"
-        // Column mapping based on user prompt
+        // Business Rule: ONLY "SALVO" (case-insensitive)
         const status = row["Situação"];
-        if (status !== "SALVO") {
+        const normalizedStatus = String(status || "").toUpperCase().trim();
+        if (normalizedStatus !== "SALVO") {
           skipped++;
           continue;
         }
