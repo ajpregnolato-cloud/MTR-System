@@ -295,6 +295,7 @@ export function useDeleteAllMtrs() {
       queryClient.invalidateQueries({ queryKey: [api.mtrs.list.path] });
       queryClient.invalidateQueries({ queryKey: [api.logs.stats.path] });
       queryClient.invalidateQueries({ queryKey: [api.logs.list.path] });
+      queryClient.invalidateQueries({ queryKey: ["/api/results"] });
       toast({ 
         title: "Dados Limpos", 
         description: data.message 
@@ -304,4 +305,34 @@ export function useDeleteAllMtrs() {
       toast({ variant: "destructive", title: "Erro", description: err.message });
     }
   });
+}
+
+export interface SendResult {
+  mtrCode: string;
+  platform: string;
+  success: boolean;
+  message: string;
+  timestamp: string;
+}
+
+export function useResults() {
+  return useQuery({
+    queryKey: ["/api/results"],
+    queryFn: async () => {
+      const res = await fetch("/api/results", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch results");
+      return res.json() as Promise<SendResult[]>;
+    },
+    refetchInterval: 2000,
+  });
+}
+
+export function downloadResultsLog(format: 'xlsx' | 'txt' = 'xlsx') {
+  const url = `/api/results/download?format=${format}`;
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `log_recebimento.${format}`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 }

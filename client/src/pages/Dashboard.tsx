@@ -13,7 +13,9 @@ import {
   Wifi,
   WifiOff,
   XCircle,
-  Building2
+  Building2,
+  Download,
+  FileText
 } from "lucide-react";
 import type { Platform } from "@shared/schema";
 import { format } from "date-fns";
@@ -24,13 +26,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MetricCard } from "@/components/MetricCard";
 import { StatusBadge } from "@/components/StatusBadge";
 import { MtrEditDialog } from "@/components/MtrEditDialog";
 import { ClassificationPanel } from "@/components/ClassificationPanel";
-import { useMtrs, useUploadSinir, useBatchProcess, useDeleteMtr, useValidateMtrs, useTestSinirConnection, useImportMtrFromSinir, useImportMtrFromIema, useDeleteAllMtrs } from "@/hooks/use-mtrs";
+import { useMtrs, useUploadSinir, useBatchProcess, useDeleteMtr, useValidateMtrs, useTestSinirConnection, useImportMtrFromSinir, useImportMtrFromIema, useDeleteAllMtrs, useResults, downloadResultsLog } from "@/hooks/use-mtrs";
 import { useLogStats } from "@/hooks/use-logs";
 
 export default function Dashboard() {
@@ -43,6 +45,7 @@ export default function Dashboard() {
 
   const { data: mtrsData, isLoading } = useMtrs({ page, limit: 10, search });
   const { data: stats } = useLogStats();
+  const { data: results } = useResults();
 
   const uploadMutation = useUploadSinir();
   const batchMutation = useBatchProcess();
@@ -52,6 +55,10 @@ export default function Dashboard() {
   const importFromSinirMutation = useImportMtrFromSinir();
   const importFromIemaMutation = useImportMtrFromIema();
   const deleteAllMutation = useDeleteAllMtrs();
+  
+  const resultsCount = results?.length || 0;
+  const successCount = results?.filter(r => r.success).length || 0;
+  const errorCount = results?.filter(r => !r.success).length || 0;
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -240,6 +247,96 @@ export default function Dashboard() {
           color="warning" 
         />
       </div>
+
+      {/* Painel de Resultados do Envio */}
+      {resultsCount > 0 && (
+        <Card className="border-border/60 shadow-sm bg-gradient-to-r from-slate-50 to-white">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <FileText className="h-5 w-5 text-primary" />
+                <CardTitle className="text-lg">Resultado do Envio</CardTitle>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3 text-sm">
+                  <span className="flex items-center gap-1">
+                    <CheckCheck className="h-4 w-4 text-emerald-600" />
+                    <span className="text-emerald-700 font-medium">{successCount} sucesso</span>
+                  </span>
+                  {errorCount > 0 && (
+                    <span className="flex items-center gap-1">
+                      <XCircle className="h-4 w-4 text-red-500" />
+                      <span className="text-red-600 font-medium">{errorCount} erro(s)</span>
+                    </span>
+                  )}
+                  <span className="text-muted-foreground">de {resultsCount} total</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    onClick={() => downloadResultsLog('xlsx')}
+                    data-testid="button-download-xlsx"
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    Excel
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    onClick={() => downloadResultsLog('txt')}
+                    data-testid="button-download-txt"
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    TXT
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="max-h-40 overflow-y-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[200px]">MTR</TableHead>
+                    <TableHead>Plataforma</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Mensagem</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {results?.slice(0, 10).map((r, idx) => (
+                    <TableRow key={idx} data-testid={`row-result-${idx}`}>
+                      <TableCell className="font-mono text-xs">{r.mtrCode}</TableCell>
+                      <TableCell>{r.platform}</TableCell>
+                      <TableCell>
+                        {r.success ? (
+                          <span className="inline-flex items-center gap-1 text-emerald-600 text-xs font-medium">
+                            <CheckCheck className="h-3 w-3" /> OK
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-red-600 text-xs font-medium">
+                            <XCircle className="h-3 w-3" /> Erro
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground truncate max-w-[300px]">
+                        {r.message}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              {resultsCount > 10 && (
+                <p className="text-center text-sm text-muted-foreground mt-2">
+                  Mostrando 10 de {resultsCount} resultados. Baixe o log completo.
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Painel de Classificação */}
       <ClassificationPanel />

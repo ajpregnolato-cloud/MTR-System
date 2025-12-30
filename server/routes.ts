@@ -3,9 +3,12 @@ import type { Server } from "http";
 import multer from "multer";
 import * as xlsx from "xlsx";
 import { storage } from "./storage";
+import { sessionStorage, type SessionMtr, type SendResult } from "./session-storage";
+import { generateResultLog, getLogFilename } from "./result-log-generator";
 import { api } from "@shared/routes";
 import { z } from "zod";
-import { SinirService } from "./sinir"; // We'll create this
+import { SinirService } from "./sinir";
+import type { Platform } from "@shared/schema";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -95,10 +98,14 @@ export async function registerRoutes(
         mtrGroups.get(key)!.push(row);
       }
 
-      // Process each MTR with its items
+      // Clear previous session data before new import
+      sessionStorage.clearMtrs();
+      sessionStorage.clearResults();
+
+      // Process each MTR with its items (in-memory storage)
       for (const [mtrCode, rows] of Array.from(mtrGroups.entries())) {
-        // Check duplicate
-        const existing = await storage.getMtrByCode(mtrCode);
+        // Check duplicate in session
+        const existing = sessionStorage.getMtrByCode(mtrCode);
         if (existing) {
           skipped++;
           continue; 
@@ -108,17 +115,15 @@ export async function registerRoutes(
         const items = rows.map((row: any) => ({
           code: row["Resíduo Cód/Descrição"] ? String(row["Resíduo Cód/Descrição"]).split('-')[0].trim() : undefined,
           description: row["Resíduo Cód/Descrição"],
-          quantity: parseFloat(String(row["Quantidade indicada"] || "0").replace(",", ".")) || 0,
-          quantityReceived: row["Quantidade recebida"] ? parseFloat(String(row["Quantidade recebida"]).replace(",", ".")) : undefined,
+          quantity: String(parseFloat(String(row["Quantidade indicada"] || "0").replace(",", ".")) || 0),
+          quantityReceived: row["Quantidade recebida"] ? String(parseFloat(String(row["Quantidade recebida"]).replace(",", "."))) : undefined,
           unit: row["Unidade"],
           treatment: row["Tratamento"],
           class: row["Classe"],
-          justificativa: row["Justificativa"],
-          observacaoDestinador: row["Observação Destinador"]
         }));
 
         try {
-          await storage.createMtr({
+          sessionStorage.addMtr({
             mtrCode: mtrCode,
             platform: platform,
             manifestType: firstRow["Tipo Manifesto"],
@@ -163,33 +168,72 @@ export async function registerRoutes(
     }
   });
 
-  // === MTRs CRUD ===
+  // === MTRs CRUD (In-memory session storage) ===
   app.get(api.mtrs.list.path, async (req, res) => {
     const page = Number(req.query.page) || 1;
     const limit = Number(req.query.limit) || 10;
     const status = req.query.status as string;
     const search = req.query.search as string;
     
-    const result = await storage.getMtrs(page, limit, status, search);
+    let mtrs = sessionStorage.getMtrs();
+    
+    // Filter by status
+    if (status) {
+      mtrs = mtrs.filter(m => m.systemStatus === status);
+    }
+    
+    // Filter by search
+    if (search) {
+      const searchLower = search.toLowerCase();
+      mtrs = mtrs.filter(m => 
+        m.mtrCode.toLowerCase().includes(searchLower) ||
+        (m.generatorName && m.generatorName.toLowerCase().includes(searchLower))
+      );
+    }
+    
+    const total = mtrs.length;
+    const start = (page - 1) * limit;
+    const paged = mtrs.slice(start, start + limit);
+    
     res.json({
-      data: result.data,
-      total: result.total,
+      data: paged.map(m => sessionStorage.toMtrWithItems(m)),
+      total,
       page,
-      totalPages: Math.ceil(result.total / limit)
+      totalPages: Math.ceil(total / limit)
     });
   });
 
   app.get(api.mtrs.get.path, async (req, res) => {
-    const mtr = await storage.getMtr(Number(req.params.id));
+    const mtr = sessionStorage.getMtr(Number(req.params.id));
     if (!mtr) return res.status(404).json({ message: "Not found" });
-    res.json(mtr);
+    res.json(sessionStorage.toMtrWithItems(mtr));
   });
 
   app.put(api.mtrs.update.path, async (req, res) => {
     try {
       const input = api.mtrs.update.input.parse(req.body);
-      const updated = await storage.updateMtr(Number(req.params.id), input);
-      res.json(updated);
+      const id = Number(req.params.id);
+      
+      // Update MTR header
+      const { items, ...headerUpdates } = input;
+      let updated = sessionStorage.updateMtr(id, headerUpdates as any);
+      
+      // Update items if provided
+      if (items && items.length > 0 && updated) {
+        for (const item of items) {
+          if (item.id) {
+            const { id: itemId, quantity, quantityReceived, ...rest } = item;
+            const itemUpdates: Record<string, any> = { ...rest };
+            if (quantity !== undefined) itemUpdates.quantity = String(quantity);
+            if (quantityReceived !== undefined) itemUpdates.quantityReceived = quantityReceived !== null ? String(quantityReceived) : null;
+            sessionStorage.updateMtrItem(id, itemId, itemUpdates);
+          }
+        }
+        updated = sessionStorage.getMtr(id);
+      }
+      
+      if (!updated) return res.status(404).json({ message: "Not found" });
+      res.json(sessionStorage.toMtrWithItems(updated));
     } catch (err: any) {
       if (err instanceof z.ZodError) {
         res.status(400).json({ message: err.errors[0].message });
@@ -200,26 +244,62 @@ export async function registerRoutes(
   });
 
   app.delete(api.mtrs.delete.path, async (req, res) => {
-    await storage.deleteMtr(Number(req.params.id));
+    sessionStorage.deleteMtr(Number(req.params.id));
     res.status(204).send();
   });
 
-  // Delete all MTRs (clear imported data) and logs
+  // Delete all MTRs (clear session data) and logs
   app.delete("/api/mtrs", async (req, res) => {
-    const mtrCount = await storage.deleteAllMtrs();
+    const mtrCount = sessionStorage.clearMtrs();
+    const resultsCount = sessionStorage.clearResults();
     const logCount = await storage.deleteAllLogs();
     res.json({ 
       success: true, 
       deleted: mtrCount, 
+      resultsCleared: resultsCount,
       logsDeleted: logCount,
       message: `${mtrCount} MTRs e ${logCount} logs removidos com sucesso` 
     });
   });
+  
+  // === Session Stats ===
+  app.get("/api/session/stats", async (req, res) => {
+    const stats = sessionStorage.getStats();
+    res.json(stats);
+  });
 
-  // === Validation ===
+  // === Results Log Download ===
+  app.get("/api/results", async (req, res) => {
+    const results = sessionStorage.getResults();
+    res.json(results);
+  });
+
+  app.get("/api/results/download", async (req, res) => {
+    const format = (req.query.format as 'xlsx' | 'txt') || 'xlsx';
+    const results = sessionStorage.getResults();
+    
+    if (results.length === 0) {
+      return res.status(404).json({ message: "Nenhum resultado para download. Envie MTRs primeiro." });
+    }
+    
+    const buffer = generateResultLog(results, { format });
+    const filename = getLogFilename(format);
+    
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Type', format === 'xlsx' 
+      ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      : 'text/plain; charset=utf-8');
+    res.send(buffer);
+  });
+
+  // === Validation (In-memory) ===
   app.post(api.mtrs.validate.path, async (req, res) => {
-    const ids = req.body.ids;
-    const mtrsToValidate = await storage.getPendingValidationMtrs(ids);
+    const ids = req.body.ids as number[] | undefined;
+    
+    let mtrsToValidate = sessionStorage.getMtrs();
+    if (ids && ids.length > 0) {
+      mtrsToValidate = mtrsToValidate.filter(m => ids.includes(m.id));
+    }
     
     let processed = 0;
     let valid = 0;
@@ -249,22 +329,24 @@ export async function registerRoutes(
       const isValid = validationErrors.length === 0;
       if (isValid) valid++; else errors++;
 
-      await storage.updateMtrStatus(
-        mtr.id, 
-        isValid ? "VALIDO" : "ERRO", 
-        isValid, 
-        validationErrors
-      );
+      sessionStorage.updateMtr(mtr.id, {
+        systemStatus: isValid ? "VALIDO" : "ERRO",
+        isValid,
+        validationErrors,
+      });
     }
 
     res.json({ processed, valid, errors });
   });
 
-  // === Batch Send ===
+  // === Batch Send (with result logging) ===
   app.post(api.batch.send.path, async (req, res) => {
     const { mtrIds, mode, platform = 'SINIR' } = req.body;
     
     const jobId = `job_${Date.now()}`;
+    
+    // Clear previous results before new batch
+    sessionStorage.clearResults();
     
     (async () => {
       await storage.createLog({
@@ -279,8 +361,12 @@ export async function registerRoutes(
 
       for (const id of mtrIds) {
         try {
-          const mtr = await storage.getMtr(id);
-          if (!mtr) continue;
+          const sessionMtr = sessionStorage.getMtr(id);
+          if (!sessionMtr) continue;
+          
+          const mtr = sessionStorage.toMtrWithItems(sessionMtr);
+          let resultMessage = "";
+          let success = false;
 
           if (mode === 'REAL') {
             let result: { success: boolean; message?: string; details?: any };
@@ -294,30 +380,62 @@ export async function registerRoutes(
               result = await sinir.sendMtrWithDetails(mtr);
             }
             
+            success = result.success;
+            resultMessage = result.message || (success ? "Recebido com sucesso" : "Falha no recebimento");
+            
             await storage.createLog({
-              level: result.success ? 'INFO' : 'ERROR',
+              level: success ? 'INFO' : 'ERROR',
               category: platform,
-              message: `MTR ${mtr.mtrCode}: ${result.success ? 'Enviado com sucesso' : 'Falha no envio'}`,
+              message: `MTR ${mtr.mtrCode}: ${success ? 'Enviado com sucesso' : 'Falha no envio'}`,
               details: { mtrCode: mtr.mtrCode, response: result.details }
             });
 
-            if (!result.success) {
+            if (!success) {
               failed++;
-              await storage.updateMtrStatus(id, "ERRO", false, [result.message || `Erro ao enviar para ${platform}`]);
-              continue;
+              sessionStorage.updateMtr(id, {
+                systemStatus: "ERRO",
+                isValid: false,
+                validationErrors: [resultMessage],
+              });
+            } else {
+              sessionStorage.updateMtr(id, { systemStatus: "ENVIADO", isValid: true, validationErrors: [] });
+              sent++;
             }
           } else {
-            await new Promise(r => setTimeout(r, 500));
+            // Simulated mode
+            await new Promise(r => setTimeout(r, 200));
+            success = true;
+            resultMessage = "Simulado - Recebido com sucesso";
+            sessionStorage.updateMtr(id, { systemStatus: "ENVIADO", isValid: true, validationErrors: [] });
+            sent++;
           }
 
-          await storage.updateMtrStatus(id, "ENVIADO", true, []);
-          sent++;
+          // Record result for download log
+          sessionStorage.addResult({
+            mtrCode: mtr.mtrCode,
+            platform: platform as Platform,
+            success,
+            message: resultMessage,
+            timestamp: new Date(),
+          });
+
         } catch (err: any) {
+          const sessionMtr = sessionStorage.getMtr(id);
+          const mtrCode = sessionMtr?.mtrCode || `ID:${id}`;
+          
           failed++;
+          sessionStorage.addResult({
+            mtrCode,
+            platform: platform as Platform,
+            success: false,
+            message: err.message || "Erro desconhecido",
+            timestamp: new Date(),
+          });
+          
           await storage.createLog({
             level: 'ERROR',
             category: 'BATCH',
-            message: `Failed to send MTR ${id}`,
+            message: `Failed to send MTR ${mtrCode}`,
             details: { error: err.message }
           });
         }
