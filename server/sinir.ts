@@ -74,13 +74,14 @@ export class SinirService {
     return { cnpj, senha, usuario, preToken, unidade: undefined };
   }
 
-  // Authenticate with SINIR API - New endpoint: /autenticar
-  async authenticate(): Promise<boolean> {
+  // Authenticate with SINIR API - use credentials to get JWT token
+  // forceCredentials: if true, ignore Token API WS and always use credentials
+  async authenticate(forceCredentials: boolean = false): Promise<boolean> {
     const credentials = await this.getCredentials();
     const { usuario, senha, preToken, cnpj, unidade } = credentials;
     
     // Check if pre-configured token exists
-    if (preToken && preToken.length > 10) {
+    if (preToken && preToken.length > 10 && !forceCredentials) {
       const tokenValue = preToken.startsWith('Bearer ') ? preToken.substring(7) : preToken;
       const dotCount = (tokenValue.match(/\./g) || []).length;
       
@@ -90,11 +91,8 @@ export class SinirService {
         console.log("[SINIR] Using pre-configured JWT token");
         return true;
       } else {
-        // Token API WS - try using it directly without Bearer prefix
-        // Some SINIR endpoints may accept this format in the Authorization header
-        this.token = tokenValue;
-        console.log("[SINIR] Using Token API WS (non-JWT format)");
-        return true;
+        // Token API WS - NOT a JWT, we need to authenticate with credentials
+        console.log("[SINIR] Token API WS detected (not JWT) - must authenticate with credentials");
       }
     }
     
@@ -259,10 +257,15 @@ export class SinirService {
   // Receive MTR in batch - Endpoint: /receberManifestoLote
   // Based on SINIR Swagger documentation
   async receiveMtrBatch(mtrs: MtrWithItems[]): Promise<{ success: boolean; results: any[]; details?: any }> {
-    if (!this.token) {
-      const authenticated = await this.authenticate();
+    // For actual MTR operations, we MUST have a valid JWT token
+    // Token API WS won't work - force credentials authentication
+    const isJwtToken = this.token && (this.token.match(/\./g) || []).length >= 2;
+    if (!isJwtToken) {
+      console.log("[SINIR] Need JWT for MTR operations - forcing credentials auth");
+      this.token = null; // Clear any non-JWT token
+      const authenticated = await this.authenticate(true); // Force credentials
       if (!authenticated) {
-        return { success: false, results: [{ error: "Falha na autenticação" }] };
+        return { success: false, results: [{ error: "Falha na autenticação - não foi possível obter JWT" }] };
       }
     }
 
