@@ -511,6 +511,12 @@ export async function registerRoutes(
     res.json(classes);
   });
 
+  app.get("/api/sinir/responsaveis", async (req, res) => {
+    const sinir = new SinirService();
+    const result = await sinir.getUnitResponsibles();
+    res.json(result);
+  });
+
   // === SINIR Configuration ===
   app.get("/api/config", async (req, res) => {
     const config = await storage.getSinirConfig();
