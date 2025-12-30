@@ -30,7 +30,7 @@ import { MetricCard } from "@/components/MetricCard";
 import { StatusBadge } from "@/components/StatusBadge";
 import { MtrEditDialog } from "@/components/MtrEditDialog";
 import { ClassificationPanel } from "@/components/ClassificationPanel";
-import { useMtrs, useUploadSinir, useBatchProcess, useDeleteMtr, useValidateMtrs, useTestSinirConnection, useImportMtrFromSinir, useDeleteAllMtrs } from "@/hooks/use-mtrs";
+import { useMtrs, useUploadSinir, useBatchProcess, useDeleteMtr, useValidateMtrs, useTestSinirConnection, useImportMtrFromSinir, useImportMtrFromIema, useDeleteAllMtrs } from "@/hooks/use-mtrs";
 import { useLogStats } from "@/hooks/use-logs";
 
 export default function Dashboard() {
@@ -50,6 +50,7 @@ export default function Dashboard() {
   const validateMutation = useValidateMtrs();
   const testSinirMutation = useTestSinirConnection();
   const importFromSinirMutation = useImportMtrFromSinir();
+  const importFromIemaMutation = useImportMtrFromIema();
   const deleteAllMutation = useDeleteAllMtrs();
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -164,17 +165,23 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Buscar MTR Individual do SINIR */}
+      {/* Buscar MTR Individual - Dinâmico por Plataforma */}
       <Card>
         <CardContent className="pt-4">
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
             <div className="flex-1">
-              <p className="text-sm font-medium mb-1">Buscar MTR diretamente do SINIR</p>
-              <p className="text-xs text-muted-foreground">Digite o número do MTR para importar do sistema SINIR</p>
+              <p className="text-sm font-medium mb-1">
+                Buscar MTR diretamente do {platform}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {platform === 'SINIR' 
+                  ? 'Digite o número do MTR para importar do sistema SINIR'
+                  : 'Digite o código de barras do MTR para importar do sistema IEMA'}
+              </p>
             </div>
             <div className="flex items-center gap-2 w-full sm:w-auto">
               <Input
-                placeholder="Ex: 123456789012"
+                placeholder={platform === 'SINIR' ? "Ex: 123456789012" : "Ex: 32XXXXXXXXXXXXXXX"}
                 value={mtrSearchCode}
                 onChange={(e) => setMtrSearchCode(e.target.value)}
                 className="w-full sm:w-48"
@@ -183,14 +190,18 @@ export default function Dashboard() {
               <Button 
                 onClick={() => {
                   if (mtrSearchCode.trim()) {
-                    importFromSinirMutation.mutate(mtrSearchCode.trim());
+                    if (platform === 'SINIR') {
+                      importFromSinirMutation.mutate(mtrSearchCode.trim());
+                    } else {
+                      importFromIemaMutation.mutate(mtrSearchCode.trim());
+                    }
                     setMtrSearchCode("");
                   }
                 }}
-                disabled={!mtrSearchCode.trim() || importFromSinirMutation.isPending}
+                disabled={!mtrSearchCode.trim() || importFromSinirMutation.isPending || importFromIemaMutation.isPending}
                 data-testid="button-import-mtr"
               >
-                {importFromSinirMutation.isPending ? (
+                {(importFromSinirMutation.isPending || importFromIemaMutation.isPending) ? (
                   <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
                   <Search className="mr-2 h-4 w-4" />

@@ -100,6 +100,7 @@ export const iemaConfig = pgTable("iema_config", {
 export const classificationData = pgTable("classification_data", {
   id: serial("id").primaryKey(),
   mtrCode: text("mtr_code").notNull(), // iMTR - key to match with MTRs
+  platform: platformEnum("platform").default("SINIR"), // Platform this classification belongs to
   placa: text("placa"), // Placa (Transp)
   cnpj: text("cnpj"), // CNPJ do gerador
   quantityEstimated: decimal("quantity_estimated", { precision: 10, scale: 3 }), // Qde Estimada
