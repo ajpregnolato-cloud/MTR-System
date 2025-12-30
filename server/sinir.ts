@@ -526,6 +526,60 @@ export class SinirService {
     }
   }
 
+  // Get unit responsible parties (users who can receive MTRs)
+  async getUnitResponsibles(): Promise<{ success: boolean; responsaveis: any[]; message?: string }> {
+    if (!this.token) {
+      const authenticated = await this.authenticate();
+      if (!authenticated) {
+        return { success: false, responsaveis: [], message: "Falha na autenticação" };
+      }
+    }
+    
+    const credentials = await this.getCredentials();
+    const unidade = credentials.unidade;
+    
+    if (!unidade) {
+      return { success: false, responsaveis: [], message: "Código da unidade não configurado" };
+    }
+    
+    // Try different endpoints that might return unit users
+    const endpoints = [
+      `${this.baseUrl}/retornaUsuariosUnidade/${unidade}`,
+      `${this.baseUrl}/retornaResponsaveisUnidade/${unidade}`,
+      `${this.baseUrl}/unidade/${unidade}/usuarios`,
+      `${this.legacyBaseUrl}/retornaUsuariosUnidade/${unidade}`,
+    ];
+    
+    for (const endpoint of endpoints) {
+      try {
+        console.log(`[SINIR] Trying to fetch responsibles from: ${endpoint}`);
+        const response = await fetch(endpoint, {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': this.token!,
+          },
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          const responsaveis = data.objetoResposta || data.usuarios || data || [];
+          if (Array.isArray(responsaveis) && responsaveis.length > 0) {
+            console.log(`[SINIR] Found ${responsaveis.length} responsibles`);
+            return { success: true, responsaveis };
+          }
+        }
+      } catch (error) {
+        console.log(`[SINIR] Endpoint ${endpoint} failed:`, error);
+      }
+    }
+    
+    return { 
+      success: false, 
+      responsaveis: [], 
+      message: "Não foi possível buscar responsáveis. Verifique o nome manualmente no portal SINIR." 
+    };
+  }
+
   // Test connection - tries authentication and a real API call to validate
   async testConnection(): Promise<{ success: boolean; message: string; details?: any }> {
     try {
