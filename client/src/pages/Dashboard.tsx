@@ -11,7 +11,8 @@ import {
   Trash2,
   Play,
   Wifi,
-  WifiOff
+  WifiOff,
+  XCircle
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -19,12 +20,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent } from "@/components/ui/card";
 import { MetricCard } from "@/components/MetricCard";
 import { StatusBadge } from "@/components/StatusBadge";
 import { MtrEditDialog } from "@/components/MtrEditDialog";
-import { useMtrs, useUploadSinir, useBatchProcess, useDeleteMtr, useValidateMtrs, useTestSinirConnection, useImportMtrFromSinir } from "@/hooks/use-mtrs";
+import { useMtrs, useUploadSinir, useBatchProcess, useDeleteMtr, useValidateMtrs, useTestSinirConnection, useImportMtrFromSinir, useDeleteAllMtrs } from "@/hooks/use-mtrs";
 import { useLogStats } from "@/hooks/use-logs";
 
 export default function Dashboard() {
@@ -43,6 +45,7 @@ export default function Dashboard() {
   const validateMutation = useValidateMtrs();
   const testSinirMutation = useTestSinirConnection();
   const importFromSinirMutation = useImportMtrFromSinir();
+  const deleteAllMutation = useDeleteAllMtrs();
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -118,6 +121,42 @@ export default function Dashboard() {
               </label>
             </Button>
           </div>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button 
+                variant="outline" 
+                className="text-destructive border-destructive/30 hover:bg-destructive/10"
+                disabled={deleteAllMutation.isPending || !mtrsData?.total}
+                data-testid="button-clear-all"
+              >
+                {deleteAllMutation.isPending ? (
+                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <XCircle className="mr-2 h-4 w-4" />
+                )}
+                Limpar Dados
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Limpar todos os dados?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Esta ação vai remover todos os {mtrsData?.total || 0} MTRs importados. 
+                  Você poderá importar uma nova planilha depois. Esta ação não pode ser desfeita.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel data-testid="button-cancel-clear">Cancelar</AlertDialogCancel>
+                <AlertDialogAction 
+                  onClick={() => deleteAllMutation.mutate()}
+                  className="bg-destructive hover:bg-destructive/90"
+                  data-testid="button-confirm-clear"
+                >
+                  Sim, limpar tudo
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </div>
 

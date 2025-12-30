@@ -198,6 +198,17 @@ export async function registerRoutes(
     res.status(204).send();
   });
 
+  // Delete all MTRs (clear imported data)
+  app.delete("/api/mtrs", async (req, res) => {
+    const count = await storage.deleteAllMtrs();
+    await storage.createLog({
+      level: "INFO",
+      message: `Todos os MTRs foram removidos (${count} registros)`,
+      action: "DELETE_ALL",
+    });
+    res.json({ success: true, deleted: count, message: `${count} MTRs removidos com sucesso` });
+  });
+
   // === Validation ===
   app.post(api.mtrs.validate.path, async (req, res) => {
     const ids = req.body.ids;

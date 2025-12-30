@@ -14,6 +14,7 @@ export interface IStorage {
   getMtrByCode(code: string): Promise<Mtr | undefined>;
   updateMtr(id: number, update: UpdateMtrRequest): Promise<MtrWithItems>;
   deleteMtr(id: number): Promise<void>;
+  deleteAllMtrs(): Promise<number>;
   
   // Validation & Batch
   getPendingValidationMtrs(ids?: number[]): Promise<MtrWithItems[]>;
@@ -131,6 +132,14 @@ export class DatabaseStorage implements IStorage {
     await db.transaction(async (tx) => {
       await tx.delete(mtrItems).where(eq(mtrItems.mtrId, id));
       await tx.delete(mtrs).where(eq(mtrs.id, id));
+    });
+  }
+
+  async deleteAllMtrs(): Promise<number> {
+    return await db.transaction(async (tx) => {
+      await tx.delete(mtrItems);
+      const result = await tx.delete(mtrs).returning({ id: mtrs.id });
+      return result.length;
     });
   }
 
