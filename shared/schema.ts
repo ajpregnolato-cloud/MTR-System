@@ -188,6 +188,7 @@ export type UpdateMtrRequest = Partial<z.infer<typeof insertMtrSchema>> & {
 export type BatchProcessRequest = {
   mtrIds: number[];
   mode: 'SIMULATED' | 'REAL';
+  platform?: Platform;
 };
 
 export type LogStats = {
