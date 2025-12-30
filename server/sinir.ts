@@ -112,33 +112,60 @@ export class SinirService {
       }
       console.log("[SINIR] Auth payload:", JSON.stringify({ ...authPayload, senha: "***" }));
       
-      const response = await fetch(`${this.baseUrl}/autenticar`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(authPayload),
-      });
+      // Try multiple auth endpoints
+      const authEndpoints = [
+        { url: `${this.baseUrl}/autenticar`, name: 'new API' },
+        { url: `${this.legacyBaseUrl}/autenticar`, name: 'legacy API' },
+      ];
 
-      const data: SinirAuthResponse = await response.json();
-      console.log("[SINIR] Auth response:", JSON.stringify(data, null, 2));
+      for (const endpoint of authEndpoints) {
+        try {
+          console.log(`[SINIR] Trying ${endpoint.name}: ${endpoint.url}`);
+          const response = await fetch(endpoint.url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(authPayload),
+          });
 
-      if (data.erro) {
-        console.error("[SINIR] Authentication failed:", data.mensagem);
-        return false;
+          const text = await response.text();
+          console.log(`[SINIR] ${endpoint.name} response status: ${response.status}`);
+          
+          // Skip HTML error pages
+          if (text.startsWith('<!') || text.startsWith('<html')) {
+            console.log(`[SINIR] ${endpoint.name} returned HTML, trying next...`);
+            continue;
+          }
+
+          const data: SinirAuthResponse = JSON.parse(text);
+          console.log("[SINIR] Auth response:", JSON.stringify(data, null, 2));
+
+          if (data.erro) {
+            console.log(`[SINIR] ${endpoint.name} failed: ${data.mensagem}`);
+            continue;
+          }
+
+          // Extract token from response
+          if (typeof data.objetoResposta === 'object' && data.objetoResposta?.token) {
+            this.token = `${data.objetoResposta.tipo} ${data.objetoResposta.token}`;
+            console.log("[SINIR] Authentication successful - got JWT token");
+            return true;
+          } else if (typeof data.objetoResposta === 'string' && data.objetoResposta.includes('.')) {
+            this.token = data.objetoResposta.startsWith('Bearer ') 
+              ? data.objetoResposta 
+              : `Bearer ${data.objetoResposta}`;
+            console.log("[SINIR] Authentication successful - got token string");
+            return true;
+          }
+        } catch (error: any) {
+          console.log(`[SINIR] ${endpoint.name} error: ${error.message}`);
+          continue;
+        }
       }
 
-      // Extract token from response
-      if (typeof data.objetoResposta === 'object' && data.objetoResposta.token) {
-        this.token = `${data.objetoResposta.tipo} ${data.objetoResposta.token}`;
-      } else if (typeof data.objetoResposta === 'string') {
-        this.token = data.objetoResposta.startsWith('Bearer ') 
-          ? data.objetoResposta 
-          : `Bearer ${data.objetoResposta}`;
-      }
-
-      console.log("[SINIR] Authentication successful");
-      return true;
+      console.error("[SINIR] All authentication endpoints failed");
+      return false;
     } catch (error: any) {
       console.error("[SINIR] Authentication error:", error.message);
       return false;
