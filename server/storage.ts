@@ -15,6 +15,7 @@ export interface IStorage {
   updateMtr(id: number, update: UpdateMtrRequest): Promise<MtrWithItems>;
   deleteMtr(id: number): Promise<void>;
   deleteAllMtrs(): Promise<number>;
+  deleteAllLogs(): Promise<number>;
   
   // Validation & Batch
   getPendingValidationMtrs(ids?: number[]): Promise<MtrWithItems[]>;
@@ -141,6 +142,11 @@ export class DatabaseStorage implements IStorage {
       const result = await tx.delete(mtrs).returning({ id: mtrs.id });
       return result.length;
     });
+  }
+
+  async deleteAllLogs(): Promise<number> {
+    const result = await db.delete(systemLogs).returning({ id: systemLogs.id });
+    return result.length;
   }
 
   async getPendingValidationMtrs(ids?: number[]): Promise<MtrWithItems[]> {
