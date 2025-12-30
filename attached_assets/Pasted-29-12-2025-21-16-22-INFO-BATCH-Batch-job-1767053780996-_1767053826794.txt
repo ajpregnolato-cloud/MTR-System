@@ -1,0 +1,70 @@
+29/12/2025 21:16:22	INFO	BATCH	Batch job_1767053780996 completed
+{
+  "sent": 0,
+  "failed": 1
+}
+29/12/2025 21:16:22	ERRO	SINIR	MTR 501028459821: Falha no envio
+{
+  "mtrCode": "501028459821",
+  "response": {
+    "erro": true,
+    "mensagem": "Erro(s) encontrado(s)",
+    "totalRecords": 0,
+    "objetoResposta": [
+      {
+        "manNumero": "501028459821",
+        "observacoes": "teste",
+        "erroNacional": false,
+        "placaVeiculo": null,
+        "nomeMotorista": null,
+        "dataRecebimento": 1767053782594,
+        "restResponseValido": false,
+        "mensagemErroNacional": null,
+        "restResponseMensagem": "ERRO: Responsável pelo recebimento não encontrado! - ERRO: Resíduo/Quantidade/Tratamento não encontrado",
+        "listaManifestoResiduos": [
+          {
+            "uf": null,
+            "cidCodigo": null,
+            "claCodigo": null,
+            "greCodigo": null,
+            "manCodigo": null,
+            "resCodigo": null,
+            "tiaCodigo": null,
+            "tieCodigo": null,
+            "traCodigo": 1,
+            "uniCodigo": 1,
+            "observacoes": null,
+            "codigoGerado": null,
+            "marBairroPev": null,
+            "marDensidade": null,
+            "marNumeroONU": null,
+            "marNumeroPev": null,
+            "cidCodigoIbge": null,
+            "marQuantidade": 0.81,
+            "resCodigoNovo": null,
+            "traCodigoNovo": null,
+            "marClasseRisco": null,
+            "resCodigoIbama": "130201",
+            "marCepNumeroPev": null,
+            "marNomeEmbarque": null,
+            "marCodigoInterno": null,
+            "marJustificativa": null,
+            "marLogradouroPev": null,
+            "marComplementoPev": null,
+            "marGrupoEmbalagem": null,
+            "listaRepresentacao": null,
+            "resCodigoIbamaNovo": null,
+            "restResponseValido": false,
+            "marDescricaoInterna": null,
+            "restResponseMensagem": "ERRO: Resíduo/Quantidade/Tratamento não encontrado",
+            "marQuantidadeRecebida": 0.81,
+            "marIdentificacaoOrigemPev": null
+          }
+        ],
+        "nomeResponsavelRecebimento": "Responsável Técnico",
+        "recebimentoManifestoCodigoEstadual": null,
+        "recebimentoManifestoCodigoNacional": null
+      }
+    ]
+  }
+}
