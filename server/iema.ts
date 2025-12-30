@@ -22,20 +22,59 @@ export interface IemaManifestoResponse {
   retorno?: string;
 }
 
+// Correct structure per manual section 12 - Recebe Manifesto Lote
 interface ManifestoRecebimentoIema {
-  codigoBarras: string;
-  dataRecebimento: string; // format: YYYYMMDD
-  nomeResponsavelRecebimento: string;
-  cargoResponsavelRecebimento?: string;
-  observacao?: string;
-  itemManifestoJSONs: ItemRecebimentoIema[];
+  manifestoCodigo: string; // 10-digit manifest number
+  cnpGerador: string;
+  cnpTransportador: string;
+  recebimentoMtrResponsavel: string;
+  recebimentoMtrCargo: string;
+  recebimentoMtrData: string; // format: YYYYMMDD
+  recebimentoMtrObs?: string;
+  nomeMotorista: string;
+  placaVeiculo: string;
+  transporteMtrData: string; // format: YYYYMMDD
+  itemManifestoRecebimentoJSONs: ItemRecebimentoIema[];
 }
 
 interface ItemRecebimentoIema {
   codigoSequencial: number;
-  quantidadeRecebida: number;
-  justificativa?: string;
+  justificativa?: string | null;
+  codigoInterno?: string | null;
+  qtdRecebida: number;
+  residuo: string; // IBAMA code
+  codigoTecnologia: number;
+  codigoTipoEstado: number;
 }
+
+// Unit and technology lookup tables per IEMA manual
+const IEMA_UNIT_MAP: Record<string, number> = {
+  'm³': 1, 'm3': 1, 'metro cúbico': 1, 'metrocubico': 1,
+  'litro': 2, 'lt': 2, 'l': 2,
+  'kg': 3, 'quilograma': 3, 'quilogramas': 3,
+  'tonelada': 4, 'ton': 4, 't': 4,
+  'unidade': 5, 'un': 5,
+};
+
+const IEMA_TECHNOLOGY_MAP: Record<string, number> = {
+  'reciclagem': 7,
+  'coprocessamento': 3,
+  'incineração': 4,
+  'aterro industrial': 31, 'aterro classe i': 31,
+  'aterro classe iia': 32, 'aterro classe iib': 32, 'aterro': 32,
+  'tratamento de efluentes': 6,
+  'autoclave': 5,
+  'compostagem': 10,
+  'rerrefino': 8,
+  'blendagem': 9,
+};
+
+const IEMA_STATE_MAP: Record<string, number> = {
+  'sólido': 1, 'solido': 1, 'sól': 1, 'sol': 1,
+  'líquido': 2, 'liquido': 2, 'líq': 2, 'liq': 2,
+  'semi-sólido': 3, 'semi-solido': 3, 'pastoso': 3,
+  'gasoso': 4, 'gas': 4,
+};
 
 export class IemaService {
   private baseUrlHomolog = "https://apps.iema.es.gov.br:8443/api";
@@ -151,50 +190,33 @@ export class IemaService {
   }
 
   private getUnitCode(unitText: string | null): number {
-    if (!unitText) return 4;
+    if (!unitText) return 4; // Default: Tonelada
     const normalized = unitText.toLowerCase().trim();
-    const unitMap: Record<string, number> = {
-      'tonelada': 4,
-      'ton': 4,
-      't': 4,
-      'kg': 3,
-      'quilograma': 3,
-      'litro': 2,
-      'lt': 2,
-      'l': 2,
-      'm³': 1,
-      'm3': 1,
-      'metro cúbico': 1,
-      'unidade': 5,
-      'un': 5,
-    };
-    return unitMap[normalized] || 4;
+    return IEMA_UNIT_MAP[normalized] || 4;
   }
 
   private getTechnologyCode(treatmentText: string | null): number {
-    if (!treatmentText) return 7;
+    if (!treatmentText) return 7; // Default: Reciclagem
     const normalized = treatmentText.toLowerCase().trim();
-    const techMap: Record<string, number> = {
-      'reciclagem': 7,
-      'coprocessamento': 3,
-      'incineração': 4,
-      'aterro industrial': 31,
-      'aterro classe i': 31,
-      'aterro classe iia': 32,
-      'aterro': 32,
-      'tratamento de efluentes': 6,
-      'autoclave': 5,
-      'compostagem': 10,
-    };
     
-    for (const [key, value] of Object.entries(techMap)) {
+    for (const [key, value] of Object.entries(IEMA_TECHNOLOGY_MAP)) {
       if (normalized.includes(key)) return value;
     }
     return 7;
   }
 
+  private getPhysicalStateCode(stateText: string | null, residue: string | null): number {
+    // Special case per manual: Residue 200304 must be Líquido (2)
+    if (residue && residue.includes('200304')) return 2;
+    
+    if (!stateText) return 1; // Default: Sólido
+    const normalized = stateText.toLowerCase().trim();
+    return IEMA_STATE_MAP[normalized] || 1;
+  }
+
   private extractIbamaCode(code: string | null): string {
     if (!code) return '';
+    // Try to extract 6-digit IBAMA code
     const match = code.match(/(\d{6})/);
     return match ? match[1] : code.replace(/\D/g, '').substring(0, 6);
   }
@@ -204,6 +226,21 @@ export class IemaService {
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     return `${year}${month}${day}`;
+  }
+
+  // Extract 10-digit manifest code from barcode (first 10 chars) or use as-is if already 10 digits
+  private extractManifestoCodigo(mtrCode: string): string {
+    const cleanCode = mtrCode.replace(/\D/g, '');
+    // If 34 digits (barcode), extract first 10
+    if (cleanCode.length === 34) {
+      return cleanCode.substring(0, 10);
+    }
+    // If already 10 digits, use as-is
+    if (cleanCode.length === 10) {
+      return cleanCode;
+    }
+    // Otherwise pad/truncate to 10
+    return cleanCode.padStart(10, '0').substring(0, 10);
   }
 
   async receiveMtrBatch(mtrs: MtrWithItems[]): Promise<{ success: boolean; results: any[]; details?: any }> {
@@ -216,34 +253,73 @@ export class IemaService {
 
     const credentials = await this.getCredentials();
     const baseUrl = this.getBaseUrl(credentials.ambiente);
+    const today = this.formatDate(new Date());
 
-    const payload: ManifestoRecebimentoIema[] = mtrs.map((mtr, mtrIndex) => ({
-      codigoBarras: mtr.mtrCode,
-      dataRecebimento: this.formatDate(new Date()),
-      nomeResponsavelRecebimento: mtr.responsavelRecebimento || "Responsável Técnico",
-      cargoResponsavelRecebimento: "Responsável Técnico",
-      observacao: mtr.observations || `Recebido via integração - ${new Date().toLocaleDateString('pt-BR')}`,
-      itemManifestoJSONs: mtr.items.map((item, itemIndex) => {
-        const qty = Number(item.quantity) || 0;
-        const qtyReceived = item.quantityReceived ? Number(item.quantityReceived) : qty;
-        return {
-          codigoSequencial: itemIndex + 1,
-          quantidadeRecebida: qtyReceived,
-          justificativa: mtr.justificativa || undefined,
-        };
-      }),
-    }));
+    // Build payload per manual section 12
+    // Validate required fields before building payload
+    const errors: string[] = [];
+    mtrs.forEach((mtr, idx) => {
+      if (!mtr.generatorCnpj) errors.push(`MTR ${mtr.mtrCode}: CNPJ do gerador não informado`);
+      if (!mtr.transporterCnpj) errors.push(`MTR ${mtr.mtrCode}: CNPJ do transportador não informado`);
+      if (!mtr.motorista) errors.push(`MTR ${mtr.mtrCode}: Nome do motorista não informado`);
+      if (!mtr.placa) errors.push(`MTR ${mtr.mtrCode}: Placa do veículo não informada`);
+      if (!mtr.responsavelRecebimento) errors.push(`MTR ${mtr.mtrCode}: Responsável pelo recebimento não informado`);
+      if (mtr.items.length === 0) errors.push(`MTR ${mtr.mtrCode}: Nenhum resíduo informado`);
+    });
+    
+    if (errors.length > 0) {
+      return { 
+        success: false, 
+        results: errors.map(e => ({ error: e })),
+        details: { validationErrors: errors }
+      };
+    }
+    
+    const payload: ManifestoRecebimentoIema[] = mtrs.map((mtr) => {
+      const manifestoCodigo = this.extractManifestoCodigo(mtr.mtrCode);
+      
+      return {
+        manifestoCodigo,
+        cnpGerador: mtr.generatorCnpj!.replace(/\D/g, ''),
+        cnpTransportador: mtr.transporterCnpj!.replace(/\D/g, ''),
+        recebimentoMtrResponsavel: mtr.responsavelRecebimento!,
+        recebimentoMtrCargo: "Responsável Técnico", // Default cargo per common usage
+        recebimentoMtrData: today,
+        recebimentoMtrObs: mtr.observations || "",
+        nomeMotorista: mtr.motorista!,
+        placaVeiculo: mtr.placa!.replace(/[^A-Z0-9]/gi, ''),
+        transporteMtrData: today,
+        itemManifestoRecebimentoJSONs: mtr.items.map((item, idx) => {
+          const qty = Number(item.quantity) || 0;
+          const qtyReceived = item.quantityReceived ? Number(item.quantityReceived) : qty;
+          const residuo = this.extractIbamaCode(item.code || item.description || '');
+          // Use class field for physical state if available (e.g., "Líquido", "Sólido")
+          const stateHint = item.class?.toLowerCase().includes('líquido') ? 'líquido' : null;
+          
+          return {
+            codigoSequencial: idx + 1,
+            justificativa: qtyReceived !== qty ? (mtr.justificativa || "Quantidade ajustada") : null,
+            codigoInterno: null,
+            qtdRecebida: qtyReceived,
+            residuo: residuo,
+            codigoTecnologia: this.getTechnologyCode(item.treatment || null),
+            codigoTipoEstado: this.getPhysicalStateCode(stateHint, residuo),
+          };
+        }),
+      };
+    });
 
     console.log("[IEMA] Sending batch receive payload:", JSON.stringify(payload, null, 2));
 
     try {
-      const response = await fetch(`${baseUrl}/recebeManifestoLote`, {
+      // Correct endpoint per manual: receberManifestoLote (not recebeManifestoLote)
+      const response = await fetch(`${baseUrl}/receberManifestoLote`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${this.token}`,
         },
-        body: JSON.stringify({ manifestoJSONDtos: payload }),
+        body: JSON.stringify({ manifestoRecebimentoJSONs: payload }),
       });
 
       const text = await response.text();
@@ -257,11 +333,12 @@ export class IemaService {
       const data = JSON.parse(text);
       console.log("[IEMA] Batch receive response:", JSON.stringify(data, null, 2));
 
-      const hasErrors = data.manifestoJSONDtos?.some((d: any) => d.retornoCodigo !== 0);
+      const results = data.manifestoRecebimentoJSONs || [];
+      const hasErrors = results.some((d: any) => d.retornoCodigo !== 0);
       
       return { 
         success: !hasErrors, 
-        results: data.manifestoJSONDtos || [], 
+        results, 
         details: data 
       };
     } catch (error: any) {
@@ -294,13 +371,13 @@ export class IemaService {
     const baseUrl = this.getBaseUrl(credentials.ambiente);
 
     try {
-      const response = await fetch(`${baseUrl}/retornaManifestoPorCodigoBarras`, {
+      // Correct endpoint per manual section 16: retornaManifesto/{CODIGO_BARRA}
+      const response = await fetch(`${baseUrl}/retornaManifesto/${barcode}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${this.token}`,
         },
-        body: JSON.stringify({ codigoBarras: barcode }),
       });
 
       const data = await response.json();
@@ -328,17 +405,23 @@ export class IemaService {
     const baseUrl = this.getBaseUrl(credentials.ambiente);
 
     try {
-      const response = await fetch(`${baseUrl}/retornaListaCodigoBarrasManifestosPorData`, {
+      // Correct endpoint per manual section 17: retornaListaCodigoBarrasManifesto/{dataInicio}
+      // Date format: YYYYMMDD
+      const response = await fetch(`${baseUrl}/retornaListaCodigoBarrasManifesto/${date}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${this.token}`,
         },
-        body: JSON.stringify({ data: date }),
       });
 
       const data = await response.json();
-      return data || [];
+      console.log("[IEMA] Get manifests by date response:", JSON.stringify(data, null, 2));
+      
+      if (data.retornoCodigo === 0 && data.codigos) {
+        return data.codigos;
+      }
+      return [];
     } catch (error: any) {
       console.error("[IEMA] Get manifests by date error:", error.message);
       return [];
@@ -355,13 +438,13 @@ export class IemaService {
     const baseUrl = this.getBaseUrl(credentials.ambiente);
 
     try {
-      const response = await fetch(`${baseUrl}/downloadPdfManifesto`, {
+      // Correct endpoint per manual section 9: buscaPdfManifestoPorCodigoBarras/{CODIGO_BARRA}
+      const response = await fetch(`${baseUrl}/buscaPdfManifestoPorCodigoBarras/${barcode}`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/pdf',
           'Authorization': `Bearer ${this.token}`,
         },
-        body: JSON.stringify({ codigoBarras: barcode }),
       });
 
       if (!response.ok) {
@@ -377,7 +460,7 @@ export class IemaService {
     }
   }
 
-  async cancelMtr(barcode: string, justificativa: string): Promise<{ success: boolean; message: string }> {
+  async cancelMtr(mtrCodeOrBarcode: string, justificativa: string): Promise<{ success: boolean; message: string }> {
     if (!this.isTokenValid()) {
       const authenticated = await this.authenticate();
       if (!authenticated) {
@@ -385,19 +468,27 @@ export class IemaService {
       }
     }
 
+    if (!justificativa || justificativa.trim().length === 0) {
+      return { success: false, message: "Justificativa é obrigatória para cancelamento" };
+    }
+
     const credentials = await this.getCredentials();
     const baseUrl = this.getBaseUrl(credentials.ambiente);
 
     try {
-      const response = await fetch(`${baseUrl}/cancelaManifesto`, {
+      // Extract 10-digit manifest code if barcode provided
+      const manifestoCodigo = this.extractManifestoCodigo(mtrCodeOrBarcode);
+      
+      // Correct endpoint per manual section 15: cancelarManifesto
+      const response = await fetch(`${baseUrl}/cancelarManifesto`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${this.token}`,
         },
         body: JSON.stringify({
-          codigoBarras: barcode,
-          justificativa: justificativa,
+          manifestoCodigo: manifestoCodigo,
+          justificativa: justificativa.trim(),
         }),
       });
 
