@@ -1,8 +1,9 @@
 import { db } from "./db";
 import {
-  mtrs, mtrItems, systemLogs, sinirConfig, classificationData,
+  mtrs, mtrItems, systemLogs, sinirConfig, iemaConfig, classificationData,
   type Mtr, type MtrItem, type InsertMtr, type InsertMtrItem, type SystemLog,
   type UpdateMtrRequest, type LogStats, type MtrWithItems, type SinirConfig, type InsertSinirConfig,
+  type IemaConfig, type InsertIemaConfig,
   type ClassificationData, type InsertClassificationData
 } from "@shared/schema";
 import { eq, inArray, desc, sql, and } from "drizzle-orm";
@@ -30,6 +31,10 @@ export interface IStorage {
   // SINIR Config
   getSinirConfig(): Promise<SinirConfig | null>;
   saveSinirConfig(config: InsertSinirConfig): Promise<SinirConfig>;
+  
+  // IEMA Config
+  getIemaConfig(): Promise<IemaConfig | null>;
+  saveIemaConfig(config: InsertIemaConfig): Promise<IemaConfig>;
   
   // Classification Data
   saveClassificationData(data: InsertClassificationData[]): Promise<number>;
@@ -219,6 +224,25 @@ export class DatabaseStorage implements IStorage {
       return updated;
     } else {
       const [created] = await db.insert(sinirConfig).values(config).returning();
+      return created;
+    }
+  }
+  
+  async getIemaConfig(): Promise<IemaConfig | null> {
+    const result = await db.select().from(iemaConfig).limit(1);
+    return result.length > 0 ? result[0] : null;
+  }
+  
+  async saveIemaConfig(config: InsertIemaConfig): Promise<IemaConfig> {
+    const existing = await this.getIemaConfig();
+    if (existing) {
+      const [updated] = await db.update(iemaConfig)
+        .set({ ...config, updatedAt: new Date() })
+        .where(eq(iemaConfig.id, existing.id))
+        .returning();
+      return updated;
+    } else {
+      const [created] = await db.insert(iemaConfig).values(config).returning();
       return created;
     }
   }
