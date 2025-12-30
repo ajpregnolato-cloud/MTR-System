@@ -525,7 +525,7 @@ export class SinirService {
     }
   }
 
-  // Test connection - tries authentication and a simple API call
+  // Test connection - tries authentication and a real API call to validate
   async testConnection(): Promise<{ success: boolean; message: string; details?: any }> {
     try {
       const { usuario, preToken, cnpj } = await this.getCredentials();
@@ -542,12 +542,32 @@ export class SinirService {
         return { success: false, message: "Falha na autenticação com SINIR API" };
       }
 
+      // Make a real API call to validate the token works
+      const testResponse = await fetch(`${this.baseUrl}/retornaListaClasse`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': this.token!,
+        },
+      });
+
+      if (!testResponse.ok) {
+        return { 
+          success: false, 
+          message: `Token autenticado mas API retornou erro: ${testResponse.status}` 
+        };
+      }
+
+      const testData = await testResponse.json();
+      const classCount = testData.objetoResposta?.length || 0;
+
       return { 
         success: true, 
-        message: "Conexão com SINIR API estabelecida com sucesso!",
+        message: "Conexão com SINIR API validada com sucesso!",
         details: { 
-          tokenConfigured: !!this.token,
-          cnpj: cnpj ? `${cnpj.substring(0, 4)}...` : 'não configurado'
+          tokenValido: true,
+          cnpj: cnpj ? `${cnpj.substring(0, 4)}...` : 'não configurado',
+          classesEncontradas: classCount
         }
       };
     } catch (error: any) {
