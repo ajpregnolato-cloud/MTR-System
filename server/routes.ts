@@ -445,6 +445,215 @@ export async function registerRoutes(
     }
   });
 
+  // === Classification Import ===
+  app.post("/api/classification/import", upload.single('file'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "Nenhum arquivo enviado", imported: 0, errors: [] });
+      }
+
+      const workbook = xlsx.read(req.file.buffer, { type: 'buffer', cellDates: true });
+      const sheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+      const data = xlsx.utils.sheet_to_json<any>(sheet, { raw: false, dateNF: 'yyyy-mm-dd' });
+
+      // Clear existing classification data before importing new
+      await storage.clearClassificationData();
+
+      const records: any[] = [];
+      const errors: string[] = [];
+
+      for (const row of data) {
+        const mtrCode = row["iMTR"];
+        if (!mtrCode) {
+          errors.push("Linha sem código iMTR ignorada");
+          continue;
+        }
+
+        records.push({
+          mtrCode: String(mtrCode).trim(),
+          placa: row["Placa (Transp)"] || null,
+          cnpj: row["CNPJ"] || null,
+          quantityEstimated: row["Qde Estimada"] ? String(row["Qde Estimada"]) : null,
+          movementDate: row["Data da Movimentação"] ? parseExcelDate(row["Data da Movimentação"]) : null,
+          quantity: row["Qtd."] ? String(row["Qtd."]) : null,
+          productCode: row["Produto"] || null,
+          productName: row["Nome do Produto"] || null,
+          transporterName: row["Transportadora"] || null,
+          unit: row["UDM"] || null,
+          customerWeight: row["Peso (Cliente)"] ? String(row["Peso (Cliente)"]) : null,
+          supplyWeight: row["Peso (Supply)"] ? String(row["Peso (Supply)"]) : null,
+          ibamaName: row["ibama_name"] || null,
+        });
+      }
+
+      const imported = await storage.saveClassificationData(records);
+
+      await storage.createLog({
+        level: 'INFO',
+        category: 'CLASSIFICATION',
+        message: `Planilha de classificação importada`,
+        details: { imported, errors: errors.length }
+      });
+
+      res.json({ message: "Importação concluída", imported, errors });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message, imported: 0, errors: [err.message] });
+    }
+  });
+
+  // Get classification data
+  app.get("/api/classification", async (req, res) => {
+    const data = await storage.getClassificationData();
+    res.json(data);
+  });
+
+  // Compare classification data with MTRs and return differences
+  app.get("/api/classification/compare", async (req, res) => {
+    try {
+      const classificationData = await storage.getClassificationData();
+      const { data: mtrs } = await storage.getMtrs(1, 1000); // Get all MTRs
+      
+      const comparisons: any[] = [];
+      
+      // Group classification data by mtrCode
+      const classificationByMtr = new Map<string, any[]>();
+      for (const cd of classificationData) {
+        if (!classificationByMtr.has(cd.mtrCode)) {
+          classificationByMtr.set(cd.mtrCode, []);
+        }
+        classificationByMtr.get(cd.mtrCode)!.push(cd);
+      }
+      
+      // Compare each MTR with classification data
+      for (const mtr of mtrs) {
+        const classData = classificationByMtr.get(mtr.mtrCode);
+        if (!classData || classData.length === 0) continue;
+        
+        // First classification row for this MTR (for header-level fields)
+        const firstClass = classData[0];
+        
+        const differences: any = {
+          mtrId: mtr.id,
+          mtrCode: mtr.mtrCode,
+          fields: []
+        };
+        
+        // Compare placa
+        if (firstClass.placa && firstClass.placa !== mtr.placa) {
+          differences.fields.push({
+            field: 'placa',
+            fieldLabel: 'Placa',
+            sinirValue: mtr.placa || '',
+            classificationValue: firstClass.placa,
+          });
+        }
+        
+        // Compare items (quantity, unit, etc.)
+        for (const ci of classData) {
+          for (const item of mtr.items) {
+            // Try to match by product name or IBAMA code
+            const ibamaCode = ci.ibamaName ? ci.ibamaName.match(/\d+/)?.[0] : null;
+            const itemCode = item.code?.split(' ')[0];
+            
+            if (ibamaCode && itemCode && ibamaCode === itemCode) {
+              // Match found - compare quantities
+              const classQty = Number(ci.quantity || 0);
+              const mtrQty = Number(item.quantityReceived || item.quantity || 0);
+              
+              if (classQty !== mtrQty && classQty > 0) {
+                differences.fields.push({
+                  field: 'quantityReceived',
+                  fieldLabel: `Quantidade - ${item.description?.substring(0, 30) || item.code}`,
+                  itemId: item.id,
+                  sinirValue: mtrQty,
+                  classificationValue: classQty,
+                });
+              }
+              
+              // Compare unit
+              if (ci.unit && ci.unit !== item.unit) {
+                differences.fields.push({
+                  field: 'unit',
+                  fieldLabel: `Unidade - ${item.description?.substring(0, 30) || item.code}`,
+                  itemId: item.id,
+                  sinirValue: item.unit || '',
+                  classificationValue: ci.unit,
+                });
+              }
+            }
+          }
+        }
+        
+        if (differences.fields.length > 0) {
+          comparisons.push(differences);
+        }
+      }
+      
+      res.json({ 
+        comparisons,
+        totalMtrs: mtrs.length,
+        totalWithDifferences: comparisons.length,
+        classificationRows: classificationData.length
+      });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Apply selected corrections from classification
+  app.post("/api/classification/apply", async (req, res) => {
+    try {
+      const { corrections } = req.body;
+      // corrections: Array<{ mtrId: number, fields: Array<{ field: string, value: any, itemId?: number }> }>
+      
+      let applied = 0;
+      
+      for (const correction of corrections) {
+        const mtrUpdate: any = {};
+        const itemUpdates: any[] = [];
+        
+        for (const field of correction.fields) {
+          if (field.itemId) {
+            // Item-level field
+            itemUpdates.push({
+              id: field.itemId,
+              [field.field]: field.value
+            });
+          } else {
+            // MTR header field
+            mtrUpdate[field.field] = field.value;
+          }
+        }
+        
+        if (Object.keys(mtrUpdate).length > 0 || itemUpdates.length > 0) {
+          await storage.updateMtr(correction.mtrId, {
+            ...mtrUpdate,
+            items: itemUpdates.length > 0 ? itemUpdates : undefined
+          });
+          applied++;
+        }
+      }
+      
+      await storage.createLog({
+        level: 'INFO',
+        category: 'CLASSIFICATION',
+        message: `Correções aplicadas`,
+        details: { applied }
+      });
+      
+      res.json({ message: "Correções aplicadas com sucesso", applied });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Clear classification data
+  app.delete("/api/classification", async (req, res) => {
+    const deleted = await storage.clearClassificationData();
+    res.json({ success: true, deleted });
+  });
+
   // Import MTR from SINIR into local database
   app.post("/api/sinir/import/:code", async (req, res) => {
     const mtrCode = req.params.code;
