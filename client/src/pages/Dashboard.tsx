@@ -54,7 +54,7 @@ export default function Dashboard() {
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) uploadMutation.mutate(file);
+    if (file) uploadMutation.mutate({ file, platform });
   };
 
   const handleSelectAll = (checked: boolean) => {
@@ -85,33 +85,45 @@ export default function Dashboard() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-slate-900 font-display">MTR Receiver</h1>
-          <p className="text-slate-500 mt-1">Gerencie, valide e processe manifestos de resíduos do SINIR.</p>
+          <p className="text-slate-500 mt-1">Gerencie, valide e processe manifestos de resíduos (SINIR/IEMA).</p>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
           <Button variant="outline" onClick={() => validateMutation.mutate(selectedIds.length ? selectedIds : undefined)}>
             <CheckCheck className="mr-2 h-4 w-4" />
             Validar {selectedIds.length > 0 ? `(${selectedIds.length})` : 'Todos'}
           </Button>
-          <div className="relative">
-            <input 
-              type="file" 
-              id="file-upload" 
-              className="hidden" 
-              accept=".xlsx,.xls" 
-              onChange={handleFileUpload}
-              disabled={uploadMutation.isPending}
-              data-testid="input-file-upload"
-            />
-            <Button asChild className="bg-primary shadow-lg shadow-primary/25 hover:shadow-primary/40">
-              <label htmlFor="file-upload" className="cursor-pointer" data-testid="button-import-excel">
-                {uploadMutation.isPending ? (
-                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Upload className="mr-2 h-4 w-4" />
-                )}
-                Importar Excel SINIR
-              </label>
-            </Button>
+          <div className="flex items-center gap-2">
+            <Select value={platform} onValueChange={(v) => setPlatform(v as Platform)}>
+              <SelectTrigger className="w-[120px]" data-testid="select-platform">
+                <Building2 className="mr-2 h-4 w-4" />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="SINIR">SINIR</SelectItem>
+                <SelectItem value="IEMA">IEMA</SelectItem>
+              </SelectContent>
+            </Select>
+            <div className="relative">
+              <input 
+                type="file" 
+                id="file-upload" 
+                className="hidden" 
+                accept=".xlsx,.xls" 
+                onChange={handleFileUpload}
+                disabled={uploadMutation.isPending}
+                data-testid="input-file-upload"
+              />
+              <Button asChild className="bg-primary shadow-lg shadow-primary/25 hover:shadow-primary/40">
+                <label htmlFor="file-upload" className="cursor-pointer" data-testid="button-import-excel">
+                  {uploadMutation.isPending ? (
+                    <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Upload className="mr-2 h-4 w-4" />
+                  )}
+                  Importar Excel
+                </label>
+              </Button>
+            </div>
           </div>
           <AlertDialog>
             <AlertDialogTrigger asChild>
@@ -243,16 +255,6 @@ export default function Dashboard() {
                   <span className="text-sm font-medium text-muted-foreground border-r pr-3 mr-1">
                     {selectedIds.length} selecionado(s)
                   </span>
-                  <Select value={platform} onValueChange={(v) => setPlatform(v as Platform)}>
-                    <SelectTrigger className="w-[120px] h-8" data-testid="select-platform">
-                      <Building2 className="mr-2 h-3 w-3" />
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="SINIR">SINIR</SelectItem>
-                      <SelectItem value="IEMA">IEMA</SelectItem>
-                    </SelectContent>
-                  </Select>
                   <Button size="sm" variant="outline" onClick={() => handleBatchSend('SIMULATED')} data-testid="button-simulate-send">
                     <Play className="mr-2 h-3 w-3" />
                     Simular
