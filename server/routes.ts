@@ -50,6 +50,9 @@ export async function registerRoutes(
         return res.status(400).json({ message: "No file uploaded", imported: 0, skipped: 0, errors: [] });
       }
 
+      // Get platform from form data (defaults to SINIR)
+      const platform = (req.body.platform as "SINIR" | "IEMA") || "SINIR";
+
       const workbook = xlsx.read(req.file.buffer, { type: 'buffer', cellDates: true });
       const sheetName = workbook.SheetNames[0];
       const sheet = workbook.Sheets[sheetName];
@@ -62,8 +65,8 @@ export async function registerRoutes(
       await storage.createLog({
         level: 'INFO',
         category: 'IMPORT',
-        message: `Started import of ${req.file.originalname}`,
-        details: { rowCount: data.length }
+        message: `Iniciada importação ${platform} de ${req.file.originalname}`,
+        details: { rowCount: data.length, platform }
       });
 
       // Group rows by MTR code to handle multiple residues per MTR
@@ -117,6 +120,7 @@ export async function registerRoutes(
         try {
           await storage.createMtr({
             mtrCode: mtrCode,
+            platform: platform,
             manifestType: firstRow["Tipo Manifesto"],
             emissionDate: firstRow["Data de Emissão"] ? parseExcelDate(firstRow["Data de Emissão"]) : undefined,
             generatorName: firstRow["Gerador (Nome)"],
@@ -149,11 +153,11 @@ export async function registerRoutes(
       await storage.createLog({
         level: 'INFO',
         category: 'IMPORT',
-        message: `Import completed`,
-        details: { imported, skipped, errors: errors.length }
+        message: `Importação ${platform} concluída`,
+        details: { imported, skipped, errors: errors.length, platform }
       });
 
-      res.json({ message: "Import completed", imported, skipped, errors });
+      res.json({ message: `Importação ${platform} concluída`, imported, skipped, errors });
     } catch (err: any) {
       res.status(500).json({ message: err.message, imported: 0, skipped: 0, errors: [err.message] });
     }

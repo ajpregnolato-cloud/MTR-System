@@ -93,9 +93,10 @@ export function useUploadSinir() {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: async (file: File) => {
+    mutationFn: async ({ file, platform }: { file: File; platform: string }) => {
       const formData = new FormData();
       formData.append("file", file);
+      formData.append("platform", platform);
       
       const res = await fetch(api.upload.import.path, {
         method: "POST",
@@ -111,12 +112,12 @@ export function useUploadSinir() {
       queryClient.invalidateQueries({ queryKey: [api.logs.stats.path] });
       queryClient.invalidateQueries({ queryKey: [api.logs.list.path] });
       toast({ 
-        title: "Import Complete", 
-        description: `${data.message} (${data.imported} imported, ${data.errors.length} errors)` 
+        title: "Importação Concluída", 
+        description: `${data.message} (${data.imported} importados, ${data.errors.length} erros)` 
       });
     },
     onError: (err) => {
-      toast({ variant: "destructive", title: "Upload Failed", description: err.message });
+      toast({ variant: "destructive", title: "Falha no Upload", description: err.message });
     }
   });
 }
