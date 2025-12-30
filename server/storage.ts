@@ -1,8 +1,9 @@
 import { db } from "./db";
 import {
-  mtrs, mtrItems, systemLogs, sinirConfig,
+  mtrs, mtrItems, systemLogs, sinirConfig, classificationData,
   type Mtr, type MtrItem, type InsertMtr, type InsertMtrItem, type SystemLog,
-  type UpdateMtrRequest, type LogStats, type MtrWithItems, type SinirConfig, type InsertSinirConfig
+  type UpdateMtrRequest, type LogStats, type MtrWithItems, type SinirConfig, type InsertSinirConfig,
+  type ClassificationData, type InsertClassificationData
 } from "@shared/schema";
 import { eq, inArray, desc, sql, and } from "drizzle-orm";
 
@@ -29,6 +30,12 @@ export interface IStorage {
   // SINIR Config
   getSinirConfig(): Promise<SinirConfig | null>;
   saveSinirConfig(config: InsertSinirConfig): Promise<SinirConfig>;
+  
+  // Classification Data
+  saveClassificationData(data: InsertClassificationData[]): Promise<number>;
+  getClassificationData(): Promise<ClassificationData[]>;
+  getClassificationByMtrCode(mtrCode: string): Promise<ClassificationData[]>;
+  clearClassificationData(): Promise<number>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -214,6 +221,25 @@ export class DatabaseStorage implements IStorage {
       const [created] = await db.insert(sinirConfig).values(config).returning();
       return created;
     }
+  }
+  
+  async saveClassificationData(data: InsertClassificationData[]): Promise<number> {
+    if (data.length === 0) return 0;
+    const result = await db.insert(classificationData).values(data).returning({ id: classificationData.id });
+    return result.length;
+  }
+  
+  async getClassificationData(): Promise<ClassificationData[]> {
+    return await db.select().from(classificationData).orderBy(desc(classificationData.importedAt));
+  }
+  
+  async getClassificationByMtrCode(mtrCode: string): Promise<ClassificationData[]> {
+    return await db.select().from(classificationData).where(eq(classificationData.mtrCode, mtrCode));
+  }
+  
+  async clearClassificationData(): Promise<number> {
+    const result = await db.delete(classificationData).returning({ id: classificationData.id });
+    return result.length;
   }
 }
 

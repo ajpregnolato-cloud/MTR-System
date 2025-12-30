@@ -81,6 +81,25 @@ export const sinirConfig = pgTable("sinir_config", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Classification Data (from internal spreadsheet)
+export const classificationData = pgTable("classification_data", {
+  id: serial("id").primaryKey(),
+  mtrCode: text("mtr_code").notNull(), // iMTR - key to match with MTRs
+  placa: text("placa"), // Placa (Transp)
+  cnpj: text("cnpj"), // CNPJ do gerador
+  quantityEstimated: decimal("quantity_estimated", { precision: 10, scale: 3 }), // Qde Estimada
+  movementDate: timestamp("movement_date"), // Data da Movimentação
+  quantity: decimal("quantity", { precision: 10, scale: 3 }), // Qtd.
+  productCode: text("product_code"), // Produto
+  productName: text("product_name"), // Nome do Produto
+  transporterName: text("transporter_name"), // Transportadora
+  unit: text("unit"), // UDM
+  customerWeight: decimal("customer_weight", { precision: 10, scale: 3 }), // Peso (Cliente)
+  supplyWeight: decimal("supply_weight", { precision: 10, scale: 3 }), // Peso (Supply)
+  ibamaName: text("ibama_name"), // ibama_name (classificação IBAMA)
+  importedAt: timestamp("imported_at").defaultNow(),
+});
+
 // === RELATIONS ===
 export const mtrsRelations = relations(mtrs, ({ many }) => ({
   items: many(mtrItems),
@@ -114,14 +133,21 @@ export const insertSinirConfigSchema = createInsertSchema(sinirConfig).omit({
   updatedAt: true
 });
 
+export const insertClassificationDataSchema = createInsertSchema(classificationData).omit({
+  id: true,
+  importedAt: true
+});
+
 // === API TYPES ===
 export type Mtr = typeof mtrs.$inferSelect;
 export type MtrItem = typeof mtrItems.$inferSelect;
 export type SystemLog = typeof systemLogs.$inferSelect;
 export type SinirConfig = typeof sinirConfig.$inferSelect;
+export type ClassificationData = typeof classificationData.$inferSelect;
 export type InsertSinirConfig = z.infer<typeof insertSinirConfigSchema>;
 export type InsertMtr = z.infer<typeof insertMtrSchema>;
 export type InsertMtrItem = z.infer<typeof insertMtrItemSchema>;
+export type InsertClassificationData = z.infer<typeof insertClassificationDataSchema>;
 
 export type MtrWithItems = Mtr & { items: MtrItem[] };
 
