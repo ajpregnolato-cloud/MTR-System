@@ -846,6 +846,7 @@ export async function registerRoutes(
   });
 
   // Import MTR from IEMA into local database
+  // Manual section 16: retornaManifesto/{CODIGO_BARRA} response structure
   app.post("/api/iema/import/:code", async (req, res) => {
     const mtrCode = req.params.code;
     
@@ -865,31 +866,68 @@ export async function registerRoutes(
         return res.status(404).json({ message: "MTR não encontrado no IEMA" });
       }
 
-      // Map IEMA data to local schema
-      const manifestoData = iemaData.manifestoJSONDtos?.[0] || iemaData;
-      const mtrData = {
-        mtrCode: manifestoData.codigoBarras || mtrCode,
-        platform: "IEMA" as const,
-        manifestType: manifestoData.tipoManifesto || "MTR",
-        emissionDate: manifestoData.dataEmissao ? new Date(manifestoData.dataEmissao.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3')) : new Date(),
-        generatorName: manifestoData.geradorNome || manifestoData.gerNome,
-        generatorCnpj: manifestoData.geradorCnpj || manifestoData.gerCpfCnpj,
-        transporterName: manifestoData.transportadorNome || manifestoData.traNome,
-        transporterCnpj: manifestoData.transportadorCnpj || manifestoData.traCpfCnpj,
-        receiverName: manifestoData.destinadorNome || manifestoData.desNome,
-        receiverCnpj: manifestoData.destinadorCnpj || manifestoData.desCpfCnpj,
-        sinirStatus: manifestoData.situacao || "SALVO",
-        systemStatus: "PENDENTE" as const,
+      // Map IEMA API response (section 16) to local schema
+      // Fields per manual: manifestoCodigo, cnpGerador, cnpTransportador, cnpDestinador,
+      // situacaoManifestoCodigo, manifData, manifDataExpedicao, manifTransportadorNomeMotorista,
+      // manifTransportadorPlacaVeiculo, itemManifestoJSONs
+      
+      // Parse date from YYYYMMDD format
+      const parseIemaDate = (dateStr: string | null | undefined): Date => {
+        if (!dateStr) return new Date();
+        const match = dateStr.match(/(\d{4})(\d{2})(\d{2})/);
+        if (match) {
+          return new Date(`${match[1]}-${match[2]}-${match[3]}`);
+        }
+        return new Date();
+      };
+      
+      // Map IEMA situacaoManifestoCodigo to status string
+      const mapIemaStatus = (code: number | null): string => {
+        switch (code) {
+          case 1: return "SALVO";
+          case 3: return "RECEBIDO";
+          case 4: return "CANCELADO";
+          case 9: return "EM ARMAZENAMENTO";
+          default: return "SALVO";
+        }
+      };
+      
+      // Map unit code to text
+      const mapUnitCode = (code: number | null): string => {
+        switch (code) {
+          case 1: return "m³";
+          case 2: return "Litro";
+          case 3: return "Quilograma";
+          case 4: return "Tonelada";
+          case 5: return "Unidade";
+          default: return "Tonelada";
+        }
       };
 
-      // Map residues
-      const items = (manifestoData.itemManifestoJSONs || manifestoData.listaManifestoResiduos || []).map((r: any) => ({
-        code: r.codigoIbama || r.resCodigoIbama,
-        description: r.descricaoResiduo || r.resDescricao,
-        quantity: String(r.quantidade || r.marQuantidade || 0),
-        unit: r.unidade || r.uniDescricao || "Tonelada",
-        treatment: r.tratamento || r.traDescricao,
-        class: r.classe || r.claDescricao,
+      const mtrData = {
+        mtrCode: mtrCode, // Use the barcode as MTR code
+        platform: "IEMA" as const,
+        manifestType: "MTR",
+        emissionDate: parseIemaDate(iemaData.manifData || iemaData.manifDataExpedicao),
+        generatorCnpj: iemaData.cnpGerador,
+        transporterCnpj: iemaData.cnpTransportador,
+        receiverCnpj: iemaData.cnpDestinador,
+        motorista: iemaData.manifTransportadorNomeMotorista || undefined,
+        placa: iemaData.manifTransportadorPlacaVeiculo || undefined,
+        responsavelRecebimento: iemaData.manifGeradorNomeResponsavel || undefined,
+        sinirStatus: mapIemaStatus(iemaData.situacaoManifestoCodigo),
+        systemStatus: "PENDENTE" as const,
+        observations: iemaData.manifObservacao || undefined,
+      };
+
+      // Map residues from itemManifestoJSONs
+      const items = (iemaData.itemManifestoJSONs || []).map((r: any) => ({
+        code: r.residuo, // IBAMA code like "010102"
+        description: r.manifestoItemObservacao || `Resíduo ${r.residuo}`,
+        quantity: String(r.quantidade || 0),
+        unit: mapUnitCode(r.codigoUnidade),
+        treatment: r.codigoTecnologia ? `Tecnologia ${r.codigoTecnologia}` : undefined,
+        class: r.codigoClasse ? `Classe ${r.codigoClasse}` : undefined,
       }));
 
       // Create in database
@@ -899,7 +937,7 @@ export async function registerRoutes(
         level: 'INFO',
         category: 'IEMA',
         message: `MTR ${mtrCode} importado do IEMA`,
-        details: { mtrId: newMtr.id }
+        details: { mtrId: newMtr.id, manifestoCodigo: iemaData.manifestoCodigo }
       });
 
       res.json({ message: `MTR ${mtrCode} importado com sucesso`, mtr: newMtr });
