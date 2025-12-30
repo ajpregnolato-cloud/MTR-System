@@ -83,19 +83,6 @@ export default function Dashboard() {
           <p className="text-slate-500 mt-1">Gerencie, valide e processe manifestos de resíduos do SINIR.</p>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
-          <Button 
-            variant="outline" 
-            onClick={() => testSinirMutation.mutate()}
-            disabled={testSinirMutation.isPending}
-            data-testid="button-test-sinir"
-          >
-            {testSinirMutation.isPending ? (
-              <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Wifi className="mr-2 h-4 w-4" />
-            )}
-            Testar SINIR
-          </Button>
           <Button variant="outline" onClick={() => validateMutation.mutate(selectedIds.length ? selectedIds : undefined)}>
             <CheckCheck className="mr-2 h-4 w-4" />
             Validar {selectedIds.length > 0 ? `(${selectedIds.length})` : 'Todos'}
