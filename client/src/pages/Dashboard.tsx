@@ -12,8 +12,10 @@ import {
   Play,
   Wifi,
   WifiOff,
-  XCircle
+  XCircle,
+  Building2
 } from "lucide-react";
+import type { Platform } from "@shared/schema";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
@@ -23,6 +25,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MetricCard } from "@/components/MetricCard";
 import { StatusBadge } from "@/components/StatusBadge";
 import { MtrEditDialog } from "@/components/MtrEditDialog";
@@ -36,6 +39,7 @@ export default function Dashboard() {
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [mtrSearchCode, setMtrSearchCode] = useState("");
+  const [platform, setPlatform] = useState<Platform>("SINIR");
 
   const { data: mtrsData, isLoading } = useMtrs({ page, limit: 10, search });
   const { data: stats } = useLogStats();
@@ -71,7 +75,7 @@ export default function Dashboard() {
 
   const handleBatchSend = (mode: 'SIMULATED' | 'REAL') => {
     if (selectedIds.length === 0) return;
-    batchMutation.mutate({ mtrIds: selectedIds, mode });
+    batchMutation.mutate({ mtrIds: selectedIds, mode, platform });
     setSelectedIds([]);
   };
 
@@ -239,13 +243,23 @@ export default function Dashboard() {
                   <span className="text-sm font-medium text-muted-foreground border-r pr-3 mr-1">
                     {selectedIds.length} selecionado(s)
                   </span>
+                  <Select value={platform} onValueChange={(v) => setPlatform(v as Platform)}>
+                    <SelectTrigger className="w-[120px] h-8" data-testid="select-platform">
+                      <Building2 className="mr-2 h-3 w-3" />
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="SINIR">SINIR</SelectItem>
+                      <SelectItem value="IEMA">IEMA</SelectItem>
+                    </SelectContent>
+                  </Select>
                   <Button size="sm" variant="outline" onClick={() => handleBatchSend('SIMULATED')} data-testid="button-simulate-send">
                     <Play className="mr-2 h-3 w-3" />
-                    Simular Envio
+                    Simular
                   </Button>
                   <Button size="sm" onClick={() => handleBatchSend('REAL')} className="bg-emerald-600 hover:bg-emerald-700 text-white" data-testid="button-send-batch">
                     <Send className="mr-2 h-3 w-3" />
-                    Enviar Lote
+                    Enviar para {platform}
                   </Button>
                 </div>
               )}

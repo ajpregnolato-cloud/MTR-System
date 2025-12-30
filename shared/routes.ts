@@ -107,11 +107,13 @@ export const api = {
       input: z.object({
         mtrIds: z.array(z.number()),
         mode: z.enum(['SIMULATED', 'REAL']),
+        platform: z.enum(['SINIR', 'IEMA']).optional().default('SINIR'),
       }),
       responses: {
         200: z.object({
           jobId: z.string(),
           message: z.string(),
+          platform: z.enum(['SINIR', 'IEMA']).optional(),
         }),
       },
     },
