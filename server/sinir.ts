@@ -79,16 +79,22 @@ export class SinirService {
     const credentials = await this.getCredentials();
     const { usuario, senha, preToken, cnpj, unidade } = credentials;
     
-    // Check if pre-configured token is a valid JWT (has 2 dots)
+    // Check if pre-configured token exists
     if (preToken && preToken.length > 10) {
       const tokenValue = preToken.startsWith('Bearer ') ? preToken.substring(7) : preToken;
       const dotCount = (tokenValue.match(/\./g) || []).length;
+      
       if (dotCount === 2) {
+        // Valid JWT token
         this.token = preToken.startsWith('Bearer ') ? preToken : `Bearer ${preToken}`;
         console.log("[SINIR] Using pre-configured JWT token");
         return true;
       } else {
-        console.log("[SINIR] Token API WS detected (not JWT), will authenticate with credentials...");
+        // Token API WS - try using it directly without Bearer prefix
+        // Some SINIR endpoints may accept this format in the Authorization header
+        this.token = tokenValue;
+        console.log("[SINIR] Using Token API WS (non-JWT format)");
+        return true;
       }
     }
     
@@ -112,10 +118,12 @@ export class SinirService {
       }
       console.log("[SINIR] Auth payload:", JSON.stringify({ ...authPayload, senha: "***" }));
       
-      // Try multiple auth endpoints
+      // Try multiple auth endpoints - gettoken is the documented SINIR endpoint
       const authEndpoints = [
-        { url: `${this.baseUrl}/autenticar`, name: 'new API' },
-        { url: `${this.legacyBaseUrl}/autenticar`, name: 'legacy API' },
+        { url: `${this.legacyBaseUrl}/gettoken`, name: 'gettoken (documented)' },
+        { url: `${this.baseUrl}/gettoken`, name: 'new API gettoken' },
+        { url: `${this.baseUrl}/autenticar`, name: 'new API autenticar' },
+        { url: `${this.legacyBaseUrl}/autenticar`, name: 'legacy API autenticar' },
       ];
 
       for (const endpoint of authEndpoints) {
@@ -146,16 +154,17 @@ export class SinirService {
             continue;
           }
 
-          // Extract token from response
-          if (typeof data.objetoResposta === 'object' && data.objetoResposta?.token) {
-            this.token = `${data.objetoResposta.tipo} ${data.objetoResposta.token}`;
-            console.log("[SINIR] Authentication successful - got JWT token");
-            return true;
-          } else if (typeof data.objetoResposta === 'string' && data.objetoResposta.includes('.')) {
+          // Extract token from response - gettoken returns Bearer token as string
+          if (typeof data.objetoResposta === 'string' && data.objetoResposta.length > 10) {
+            // gettoken returns the token with "Bearer " prefix already included
             this.token = data.objetoResposta.startsWith('Bearer ') 
               ? data.objetoResposta 
               : `Bearer ${data.objetoResposta}`;
-            console.log("[SINIR] Authentication successful - got token string");
+            console.log("[SINIR] Authentication successful - got token from " + endpoint.name);
+            return true;
+          } else if (typeof data.objetoResposta === 'object' && data.objetoResposta?.token) {
+            this.token = `${data.objetoResposta.tipo || 'Bearer'} ${data.objetoResposta.token}`;
+            console.log("[SINIR] Authentication successful - got JWT token object");
             return true;
           }
         } catch (error: any) {
