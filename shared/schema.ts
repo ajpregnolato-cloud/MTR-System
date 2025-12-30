@@ -24,6 +24,12 @@ export const mtrs = pgTable("mtrs", {
   receiverName: text("receiver_name"),
   receiverCnpj: text("receiver_cnpj"),
   
+  // Transport info for SINIR receiving
+  motorista: text("motorista"), // Nome do motorista
+  placa: text("placa"), // Placa do veículo
+  responsavelRecebimento: text("responsavel_recebimento"), // Responsável pelo recebimento
+  justificativa: text("justificativa"), // Justificativa (caso quantidade diferente)
+  
   // Status & Workflow
   sinirStatus: text("sinir_status"), // Situação (from Excel)
   systemStatus: mtrStatusEnum("system_status").default("PENDENTE"), // Internal status
@@ -48,6 +54,7 @@ export const mtrItems = pgTable("mtr_items", {
   code: text("code"), // Resíduo Cód
   description: text("description"), // Resíduo Descrição
   quantity: decimal("quantity", { precision: 10, scale: 3 }), // Quantidade indicada
+  quantityReceived: decimal("quantity_received", { precision: 10, scale: 3 }), // Quantidade recebida
   unit: text("unit"), // Unidade
   treatment: text("treatment"), // Tratamento
   class: text("class"), // Classe
@@ -123,7 +130,9 @@ export type UpdateMtrRequest = Partial<z.infer<typeof insertMtrSchema>> & {
   items?: Array<{
     id: number;
     quantity?: number | string;
+    quantityReceived?: number | string | null;
     unit?: string | null;
+    treatment?: string | null;
   }>;
 };
 

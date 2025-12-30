@@ -50,9 +50,11 @@ export const api = {
       path: '/api/mtrs/:id',
       input: insertMtrSchema.partial().extend({
         items: z.array(z.object({
-          id: z.number().optional(),
+          id: z.number(),
           quantity: z.number().or(z.string()).optional(),
-          unit: z.string().optional(),
+          quantityReceived: z.number().or(z.string()).nullable().optional(),
+          unit: z.string().nullable().optional(),
+          treatment: z.string().nullable().optional(),
         })).optional()
       }),
       responses: {
