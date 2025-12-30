@@ -6,6 +6,7 @@ import { z } from "zod";
 // === ENUMS ===
 export const mtrStatusEnum = pgEnum("mtr_status", ["PENDENTE", "VALIDO", "ERRO", "ENVIADO", "PROCESSADO"]);
 export const logLevelEnum = pgEnum("log_level", ["INFO", "WARN", "ERROR"]);
+export const platformEnum = pgEnum("platform", ["SINIR", "IEMA"]);
 
 // === TABLE DEFINITIONS ===
 
@@ -13,6 +14,7 @@ export const logLevelEnum = pgEnum("log_level", ["INFO", "WARN", "ERROR"]);
 export const mtrs = pgTable("mtrs", {
   id: serial("id").primaryKey(),
   mtrCode: text("mtr_code").notNull().unique(), // Nº MTR
+  platform: platformEnum("platform").default("SINIR"), // SINIR or IEMA
   manifestType: text("manifest_type"), // Tipo Manifesto
   emissionDate: timestamp("emission_date"), // Data de Emissão
   
@@ -81,6 +83,19 @@ export const sinirConfig = pgTable("sinir_config", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// IEMA Configuration (Espírito Santo)
+export const iemaConfig = pgTable("iema_config", {
+  id: serial("id").primaryKey(),
+  pessoaCodigo: integer("pessoa_codigo"), // Código da Unidade
+  pessoaCnpj: text("pessoa_cnpj"), // CNPJ da empresa
+  usuarioCpf: text("usuario_cpf"), // CPF do usuário
+  senha: text("senha"),
+  token: text("token"),
+  tokenExpiresAt: timestamp("token_expires_at"), // Token válido por 1 hora
+  ambiente: text("ambiente").default("producao"), // homologacao ou producao
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Classification Data (from internal spreadsheet)
 export const classificationData = pgTable("classification_data", {
   id: serial("id").primaryKey(),
@@ -133,6 +148,11 @@ export const insertSinirConfigSchema = createInsertSchema(sinirConfig).omit({
   updatedAt: true
 });
 
+export const insertIemaConfigSchema = createInsertSchema(iemaConfig).omit({
+  id: true,
+  updatedAt: true
+});
+
 export const insertClassificationDataSchema = createInsertSchema(classificationData).omit({
   id: true,
   importedAt: true
@@ -143,11 +163,14 @@ export type Mtr = typeof mtrs.$inferSelect;
 export type MtrItem = typeof mtrItems.$inferSelect;
 export type SystemLog = typeof systemLogs.$inferSelect;
 export type SinirConfig = typeof sinirConfig.$inferSelect;
+export type IemaConfig = typeof iemaConfig.$inferSelect;
 export type ClassificationData = typeof classificationData.$inferSelect;
 export type InsertSinirConfig = z.infer<typeof insertSinirConfigSchema>;
+export type InsertIemaConfig = z.infer<typeof insertIemaConfigSchema>;
 export type InsertMtr = z.infer<typeof insertMtrSchema>;
 export type InsertMtrItem = z.infer<typeof insertMtrItemSchema>;
 export type InsertClassificationData = z.infer<typeof insertClassificationDataSchema>;
+export type Platform = "SINIR" | "IEMA";
 
 export type MtrWithItems = Mtr & { items: MtrItem[] };
 
