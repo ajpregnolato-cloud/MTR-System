@@ -1,0 +1,89 @@
+30/12/2025 10:59:34	INFO	BATCH	Batch job_1767103173012 completed
+{
+  "sent": 0,
+  "failed": 1,
+  "platform": "SINIR"
+}
+30/12/2025 10:59:34	ERRO	SINIR	MTR 501028459821: Falha no envio
+{
+  "mtrCode": "501028459821",
+  "response": {
+    "erro": true,
+    "mensagem": "Erro(s) encontrado(s)",
+    "totalRecords": 0,
+    "objetoResposta": [
+      {
+        "manNumero": "501028459821",
+        "observacoes": "CCO 5696",
+        "erroNacional": false,
+        "placaVeiculo": "DAH7748",
+        "nomeMotorista": "Roberto",
+        "dataRecebimento": 1767103174396,
+        "restResponseValido": false,
+        "mensagemErroNacional": null,
+        "restResponseMensagem": "ERRO: Responsável pelo recebimento não encontrado! - ERRO: Resíduo/Quantidade/Tratamento não encontrado",
+        "listaManifestoResiduos": [
+          {
+            "uf": null,
+            "cidCodigo": null,
+            "claCodigo": null,
+            "greCodigo": null,
+            "manCodigo": null,
+            "resCodigo": null,
+            "tiaCodigo": null,
+            "tieCodigo": null,
+            "traCodigo": 1,
+            "uniCodigo": 1,
+            "observacoes": null,
+            "codigoGerado": null,
+            "marBairroPev": null,
+            "marDensidade": null,
+            "marNumeroONU": null,
+            "marNumeroPev": null,
+            "cidCodigoIbge": null,
+            "marQuantidade": 0.82,
+            "resCodigoNovo": null,
+            "traCodigoNovo": null,
+            "marClasseRisco": null,
+            "resCodigoIbama": "130201",
+            "marCepNumeroPev": null,
+            "marNomeEmbarque": null,
+            "marCodigoInterno": null,
+            "marJustificativa": "Teste",
+            "marLogradouroPev": null,
+            "marComplementoPev": null,
+            "marGrupoEmbalagem": null,
+            "listaRepresentacao": null,
+            "resCodigoIbamaNovo": null,
+            "restResponseValido": false,
+            "marDescricaoInterna": null,
+            "restResponseMensagem": "ERRO: Resíduo/Quantidade/Tratamento não encontrado",
+            "marQuantidadeRecebida": 0.83,
+            "marIdentificacaoOrigemPev": null
+          }
+        ],
+        "nomeResponsavelRecebimento": "Antonio José Pregnolato",
+        "recebimentoManifestoCodigoEstadual": null,
+        "recebimentoManifestoCodigoNacional": null
+      }
+    ]
+  }
+}
+30/12/2025 10:59:33	INFO	BATCH	Batch job_1767103173012 started
+{
+  "mode": "REAL",
+  "count": 1,
+  "platform": "SINIR"
+}
+30/12/2025 10:58:01	INFO	IMPORT	Importação SINIR concluída
+{
+  "errors": 0,
+  "skipped": 2,
+  "imported": 4,
+  "platform": "SINIR"
+}
+30/12/2025 10:58:01	INFO	IMPORT	Iniciada importação SINIR de relatorio_manifesto.xlsx
+{
+  "platform": "SINIR",
+  "rowCount": 9
+}
