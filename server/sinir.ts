@@ -273,16 +273,20 @@ export class SinirService {
     const payload: ManifestoRecebimento[] = mtrs.map(mtr => ({
       manNumero: mtr.mtrCode,
       dataRecebimento: new Date().getTime(),
-      nomeResponsavelRecebimento: "Responsável Técnico",
+      nomeMotorista: mtr.motorista || undefined,
+      placaVeiculo: mtr.placa || undefined,
+      nomeResponsavelRecebimento: mtr.responsavelRecebimento || "Responsável Técnico",
       observacoes: mtr.observations || `Recebido via integração - ${new Date().toLocaleDateString('pt-BR')}`,
       listaManifestoResiduos: mtr.items.map(item => {
         const qty = Number(item.quantity) || 0;
+        const qtyReceived = item.quantityReceived ? Number(item.quantityReceived) : qty;
         return {
           resCodigoIbama: this.extractIbamaCode(item.code),
           marQuantidade: qty,
-          marQuantidadeRecebida: qty,
+          marQuantidadeRecebida: qtyReceived,
           uniCodigo: this.getUnitCode(item.unit),
           traCodigo: this.getTreatmentCode(item.treatment),
+          marJustificativa: mtr.justificativa || undefined,
         };
       }),
     }));
