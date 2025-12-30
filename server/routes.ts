@@ -470,19 +470,26 @@ export async function registerRoutes(
           continue;
         }
 
+        const parseNumeric = (val: any): string | null => {
+          if (val === null || val === undefined || val === '') return null;
+          const numStr = String(val).replace(',', '.');
+          const num = parseFloat(numStr);
+          return isNaN(num) ? null : String(num);
+        };
+        
         records.push({
           mtrCode: String(mtrCode).trim(),
           placa: row["Placa (Transp)"] || null,
           cnpj: row["CNPJ"] || null,
-          quantityEstimated: row["Qde Estimada"] ? String(row["Qde Estimada"]) : null,
+          quantityEstimated: parseNumeric(row["Qde Estimada"]),
           movementDate: row["Data da Movimentação"] ? parseExcelDate(row["Data da Movimentação"]) : null,
-          quantity: row["Qtd."] ? String(row["Qtd."]) : null,
+          quantity: parseNumeric(row["Qtd."]),
           productCode: row["Produto"] || null,
           productName: row["Nome do Produto"] || null,
           transporterName: row["Transportadora"] || null,
           unit: row["UDM"] || null,
-          customerWeight: row["Peso (Cliente)"] ? String(row["Peso (Cliente)"]) : null,
-          supplyWeight: row["Peso (Supply)"] ? String(row["Peso (Supply)"]) : null,
+          customerWeight: parseNumeric(row["Peso (Cliente)"]),
+          supplyWeight: parseNumeric(row["Peso (Supply)"]),
           ibamaName: row["ibama_name"] || null,
         });
       }
@@ -609,20 +616,31 @@ export async function registerRoutes(
       
       let applied = 0;
       
+      // Helper to convert numeric values to strings for decimal columns
+      const normalizeValue = (field: string, value: any): any => {
+        const numericFields = ['quantity', 'quantityReceived', 'customerWeight', 'supplyWeight'];
+        if (numericFields.includes(field) && value !== null && value !== undefined) {
+          return String(value);
+        }
+        return value;
+      };
+      
       for (const correction of corrections) {
         const mtrUpdate: any = {};
         const itemUpdates: any[] = [];
         
         for (const field of correction.fields) {
+          const normalizedValue = normalizeValue(field.field, field.value);
+          
           if (field.itemId) {
             // Item-level field
             itemUpdates.push({
               id: field.itemId,
-              [field.field]: field.value
+              [field.field]: normalizedValue
             });
           } else {
             // MTR header field
-            mtrUpdate[field.field] = field.value;
+            mtrUpdate[field.field] = normalizedValue;
           }
         }
         

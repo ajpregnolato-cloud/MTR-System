@@ -26,6 +26,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { MetricCard } from "@/components/MetricCard";
 import { StatusBadge } from "@/components/StatusBadge";
 import { MtrEditDialog } from "@/components/MtrEditDialog";
+import { ClassificationPanel } from "@/components/ClassificationPanel";
 import { useMtrs, useUploadSinir, useBatchProcess, useDeleteMtr, useValidateMtrs, useTestSinirConnection, useImportMtrFromSinir, useDeleteAllMtrs } from "@/hooks/use-mtrs";
 import { useLogStats } from "@/hooks/use-logs";
 
@@ -212,6 +213,9 @@ export default function Dashboard() {
           color="warning" 
         />
       </div>
+
+      {/* Painel de Classificação */}
+      <ClassificationPanel />
 
       {/* Tabela Principal */}
       <Card className="border-border/60 shadow-sm">
