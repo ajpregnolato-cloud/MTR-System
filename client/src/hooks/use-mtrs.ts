@@ -247,3 +247,31 @@ export function useImportMtrFromSinir() {
     }
   });
 }
+
+export function useDeleteAllMtrs() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/mtrs", { 
+        method: 'DELETE',
+        credentials: "include" 
+      });
+      if (!res.ok) throw new Error("Erro ao limpar dados");
+      return res.json() as Promise<{ success: boolean; deleted: number; message: string }>;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: [api.mtrs.list.path] });
+      queryClient.invalidateQueries({ queryKey: [api.logs.stats.path] });
+      queryClient.invalidateQueries({ queryKey: [api.logs.list.path] });
+      toast({ 
+        title: "Dados Limpos", 
+        description: data.message 
+      });
+    },
+    onError: (err) => {
+      toast({ variant: "destructive", title: "Erro", description: err.message });
+    }
+  });
+}
