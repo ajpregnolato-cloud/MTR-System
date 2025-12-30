@@ -79,15 +79,19 @@ export class IemaService {
     return new Date() < this.tokenExpiresAt;
   }
 
-  async authenticate(): Promise<boolean> {
+  async authenticate(forceNew: boolean = false): Promise<boolean> {
     const credentials = await this.getCredentials();
     const { pessoaCodigo, pessoaCnpj, usuarioCpf, senha, token, tokenExpiresAt, ambiente } = credentials;
 
-    if (token && tokenExpiresAt && new Date() < tokenExpiresAt) {
+    if (!forceNew && token && tokenExpiresAt && new Date() < tokenExpiresAt) {
       this.token = token;
       this.tokenExpiresAt = tokenExpiresAt;
       console.log("[IEMA] Using cached token from database");
       return true;
+    }
+    
+    if (forceNew) {
+      console.log("[IEMA] Forcing new authentication (ignoring cache)");
     }
 
     if (!pessoaCnpj || !usuarioCpf || !senha) {
@@ -463,7 +467,8 @@ export class IemaService {
         };
       }
 
-      const authenticated = await this.authenticate();
+      // Force new authentication for test (ignore cached token)
+      const authenticated = await this.authenticate(true);
       if (!authenticated) {
         return { success: false, message: "Falha na autenticação com IEMA API" };
       }
