@@ -504,6 +504,14 @@ export async function registerRoutes(
       const { IemaService } = await import("./iema");
       const iema = new IemaService();
       const result = await iema.testConnection();
+      
+      await storage.createLog({
+        level: result.success ? 'INFO' : 'ERROR',
+        category: 'IEMA',
+        message: `Teste de conexão: ${result.message}`,
+        details: result
+      });
+      
       res.json(result);
     } catch (error: any) {
       res.status(500).json({ success: false, message: error.message });
