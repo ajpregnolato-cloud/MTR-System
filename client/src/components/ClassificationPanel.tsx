@@ -1,13 +1,16 @@
 import { useState } from "react";
-import { Upload, RefreshCw, ArrowRight, Check, XCircle, FileSpreadsheet } from "lucide-react";
+import { Upload, RefreshCw, ArrowRight, Check, XCircle, FileSpreadsheet, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import type { Platform } from "@shared/schema";
 
 type ComparisonField = {
   field: string;
@@ -28,17 +31,21 @@ type CompareResponse = {
   totalMtrs: number;
   totalWithDifferences: number;
   classificationRows: number;
+  classificationPlatform: Platform | null;
+  platformMismatches: string[];
 };
 
 export function ClassificationPanel() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [selectedCorrections, setSelectedCorrections] = useState<Map<number, Set<number>>>(new Map());
+  const [classificationPlatform, setClassificationPlatform] = useState<Platform>("SINIR");
 
   const uploadMutation = useMutation({
     mutationFn: async (file: File) => {
       const formData = new FormData();
       formData.append('file', file);
+      formData.append('platform', classificationPlatform);
       const response = await fetch('/api/classification/import', {
         method: 'POST',
         body: formData,
@@ -155,31 +162,42 @@ export function ClassificationPanel() {
   return (
     <Card>
       <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-2">
           <CardTitle className="flex items-center gap-2 text-lg">
             <FileSpreadsheet className="h-5 w-5" />
             Comparar com Planilha de Classificação
           </CardTitle>
-          <div className="relative">
-            <input 
-              type="file" 
-              id="classification-upload" 
-              className="hidden" 
-              accept=".xlsx,.xls" 
-              onChange={handleFileUpload}
-              disabled={uploadMutation.isPending}
-              data-testid="input-classification-upload"
-            />
-            <Button asChild variant="outline" size="sm">
-              <label htmlFor="classification-upload" className="cursor-pointer" data-testid="button-import-classification">
-                {uploadMutation.isPending ? (
-                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Upload className="mr-2 h-4 w-4" />
-                )}
-                Importar Classificação
-              </label>
-            </Button>
+          <div className="flex items-center gap-2">
+            <Select value={classificationPlatform} onValueChange={(v) => setClassificationPlatform(v as Platform)}>
+              <SelectTrigger className="w-24" data-testid="select-classification-platform">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="SINIR">SINIR</SelectItem>
+                <SelectItem value="IEMA">IEMA</SelectItem>
+              </SelectContent>
+            </Select>
+            <div className="relative">
+              <input 
+                type="file" 
+                id="classification-upload" 
+                className="hidden" 
+                accept=".xlsx,.xls" 
+                onChange={handleFileUpload}
+                disabled={uploadMutation.isPending}
+                data-testid="input-classification-upload"
+              />
+              <Button asChild variant="outline" size="sm">
+                <label htmlFor="classification-upload" className="cursor-pointer" data-testid="button-import-classification">
+                  {uploadMutation.isPending ? (
+                    <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Upload className="mr-2 h-4 w-4" />
+                  )}
+                  Importar
+                </label>
+              </Button>
+            </div>
           </div>
         </div>
       </CardHeader>
@@ -188,11 +206,33 @@ export function ClassificationPanel() {
           <div className="flex items-center justify-center py-8">
             <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
+        ) : compareData && compareData.platformMismatches && compareData.platformMismatches.length > 0 ? (
+          <Alert variant="destructive" className="mb-4">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Plataformas incompatíveis</AlertTitle>
+            <AlertDescription>
+              <p className="mb-2">
+                A classificação foi importada como <strong>{compareData.classificationPlatform}</strong>, 
+                mas alguns MTRs foram importados de outra plataforma:
+              </p>
+              <ul className="list-disc list-inside text-sm max-h-32 overflow-y-auto">
+                {compareData.platformMismatches.slice(0, 10).map((msg, i) => (
+                  <li key={i}>{msg}</li>
+                ))}
+                {compareData.platformMismatches.length > 10 && (
+                  <li>... e mais {compareData.platformMismatches.length - 10} MTRs</li>
+                )}
+              </ul>
+              <p className="mt-2 text-sm">
+                Importe a classificação correspondente à plataforma dos MTRs ou reimporte os MTRs da plataforma correta.
+              </p>
+            </AlertDescription>
+          </Alert>
         ) : compareData && compareData.comparisons.length > 0 ? (
           <div className="space-y-4">
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">
-                {compareData.classificationRows} registros na classificação | {compareData.totalWithDifferences} MTRs com diferenças
+                {compareData.classificationRows} registros ({compareData.classificationPlatform}) | {compareData.totalWithDifferences} MTRs com diferenças
               </span>
               {totalSelected > 0 && (
                 <Button 

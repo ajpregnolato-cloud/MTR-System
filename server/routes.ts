@@ -96,7 +96,7 @@ export async function registerRoutes(
       }
 
       // Process each MTR with its items
-      for (const [mtrCode, rows] of mtrGroups) {
+      for (const [mtrCode, rows] of Array.from(mtrGroups.entries())) {
         // Check duplicate
         const existing = await storage.getMtrByCode(mtrCode);
         if (existing) {
@@ -541,6 +541,9 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Nenhum arquivo enviado", imported: 0, errors: [] });
       }
 
+      // Get platform from form data (defaults to SINIR)
+      const platform = (req.body.platform as "SINIR" | "IEMA") || "SINIR";
+
       const workbook = xlsx.read(req.file.buffer, { type: 'buffer', cellDates: true });
       const sheetName = workbook.SheetNames[0];
       const sheet = workbook.Sheets[sheetName];
@@ -568,6 +571,7 @@ export async function registerRoutes(
         
         records.push({
           mtrCode: String(mtrCode).trim(),
+          platform: platform,
           placa: row["Placa (Transp)"] || null,
           cnpj: row["CNPJ"] || null,
           quantityEstimated: parseNumeric(row["Qde Estimada"]),
@@ -588,11 +592,11 @@ export async function registerRoutes(
       await storage.createLog({
         level: 'INFO',
         category: 'CLASSIFICATION',
-        message: `Planilha de classificação importada`,
-        details: { imported, errors: errors.length }
+        message: `Planilha de classificação ${platform} importada`,
+        details: { imported, errors: errors.length, platform }
       });
 
-      res.json({ message: "Importação concluída", imported, errors });
+      res.json({ message: `Importação ${platform} concluída`, imported, errors, platform });
     } catch (err: any) {
       res.status(500).json({ message: err.message, imported: 0, errors: [err.message] });
     }
@@ -610,7 +614,11 @@ export async function registerRoutes(
       const classificationData = await storage.getClassificationData();
       const { data: mtrs } = await storage.getMtrs(1, 1000); // Get all MTRs
       
+      // Determine classification platform (from first record)
+      const classificationPlatform = classificationData.length > 0 ? (classificationData[0].platform || 'SINIR') : null;
+      
       const comparisons: any[] = [];
+      const platformMismatches: string[] = [];
       
       // Group classification data by mtrCode
       const classificationByMtr = new Map<string, any[]>();
@@ -628,6 +636,14 @@ export async function registerRoutes(
         
         // First classification row for this MTR (for header-level fields)
         const firstClass = classData[0];
+        
+        // Check platform match
+        const mtrPlatform = mtr.platform || 'SINIR';
+        const classPlatform = firstClass.platform || 'SINIR';
+        if (mtrPlatform !== classPlatform) {
+          platformMismatches.push(`MTR ${mtr.mtrCode}: importado como ${mtrPlatform}, classificação é ${classPlatform}`);
+          continue; // Skip this MTR - platform mismatch
+        }
         
         const differences: any = {
           mtrId: mtr.id,
@@ -690,7 +706,9 @@ export async function registerRoutes(
         comparisons,
         totalMtrs: mtrs.length,
         totalWithDifferences: comparisons.length,
-        classificationRows: classificationData.length
+        classificationRows: classificationData.length,
+        classificationPlatform,
+        platformMismatches
       });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
@@ -820,6 +838,75 @@ export async function registerRoutes(
       await storage.createLog({
         level: 'ERROR',
         category: 'SINIR',
+        message: `Erro ao importar MTR ${mtrCode}`,
+        details: { error: error.message }
+      });
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Import MTR from IEMA into local database
+  app.post("/api/iema/import/:code", async (req, res) => {
+    const mtrCode = req.params.code;
+    
+    try {
+      // Check if already exists
+      const existing = await storage.getMtrByCode(mtrCode);
+      if (existing) {
+        return res.status(400).json({ message: "MTR já existe no sistema" });
+      }
+
+      // Fetch from IEMA
+      const { IemaService } = await import("./iema");
+      const iema = new IemaService();
+      const iemaData = await iema.getManifestByBarcode(mtrCode);
+      
+      if (!iemaData) {
+        return res.status(404).json({ message: "MTR não encontrado no IEMA" });
+      }
+
+      // Map IEMA data to local schema
+      const manifestoData = iemaData.manifestoJSONDtos?.[0] || iemaData;
+      const mtrData = {
+        mtrCode: manifestoData.codigoBarras || mtrCode,
+        platform: "IEMA" as const,
+        manifestType: manifestoData.tipoManifesto || "MTR",
+        emissionDate: manifestoData.dataEmissao ? new Date(manifestoData.dataEmissao.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3')) : new Date(),
+        generatorName: manifestoData.geradorNome || manifestoData.gerNome,
+        generatorCnpj: manifestoData.geradorCnpj || manifestoData.gerCpfCnpj,
+        transporterName: manifestoData.transportadorNome || manifestoData.traNome,
+        transporterCnpj: manifestoData.transportadorCnpj || manifestoData.traCpfCnpj,
+        receiverName: manifestoData.destinadorNome || manifestoData.desNome,
+        receiverCnpj: manifestoData.destinadorCnpj || manifestoData.desCpfCnpj,
+        sinirStatus: manifestoData.situacao || "SALVO",
+        systemStatus: "PENDENTE" as const,
+      };
+
+      // Map residues
+      const items = (manifestoData.itemManifestoJSONs || manifestoData.listaManifestoResiduos || []).map((r: any) => ({
+        code: r.codigoIbama || r.resCodigoIbama,
+        description: r.descricaoResiduo || r.resDescricao,
+        quantity: String(r.quantidade || r.marQuantidade || 0),
+        unit: r.unidade || r.uniDescricao || "Tonelada",
+        treatment: r.tratamento || r.traDescricao,
+        class: r.classe || r.claDescricao,
+      }));
+
+      // Create in database
+      const newMtr = await storage.createMtr(mtrData, items);
+
+      await storage.createLog({
+        level: 'INFO',
+        category: 'IEMA',
+        message: `MTR ${mtrCode} importado do IEMA`,
+        details: { mtrId: newMtr.id }
+      });
+
+      res.json({ message: `MTR ${mtrCode} importado com sucesso`, mtr: newMtr });
+    } catch (error: any) {
+      await storage.createLog({
+        level: 'ERROR',
+        category: 'IEMA',
         message: `Erro ao importar MTR ${mtrCode}`,
         details: { error: error.message }
       });

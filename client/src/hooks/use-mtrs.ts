@@ -249,6 +249,35 @@ export function useImportMtrFromSinir() {
   });
 }
 
+export function useImportMtrFromIema() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async (mtrCode: string) => {
+      const res = await fetch(`/api/iema/import/${encodeURIComponent(mtrCode)}`, { 
+        method: 'POST',
+        credentials: "include" 
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || "Erro ao importar MTR do IEMA");
+      }
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: [api.mtrs.list.path] });
+      toast({ 
+        title: "MTR Importado", 
+        description: data.message || "Manifesto importado do IEMA com sucesso" 
+      });
+    },
+    onError: (err) => {
+      toast({ variant: "destructive", title: "Erro", description: err.message });
+    }
+  });
+}
+
 export function useDeleteAllMtrs() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
