@@ -102,10 +102,11 @@ export async function registerRoutes(
         }
 
         const firstRow = rows[0];
-        const items = rows.map(row => ({
+        const items = rows.map((row: any) => ({
           code: row["Resíduo Cód/Descrição"] ? String(row["Resíduo Cód/Descrição"]).split('-')[0].trim() : undefined,
           description: row["Resíduo Cód/Descrição"],
           quantity: parseFloat(String(row["Quantidade indicada"] || "0").replace(",", ".")) || 0,
+          quantityReceived: row["Quantidade Recebida"] ? parseFloat(String(row["Quantidade Recebida"]).replace(",", ".")) : undefined,
           unit: row["Unidade"],
           treatment: row["Tratamento"],
           class: row["Classe"]
@@ -122,6 +123,11 @@ export async function registerRoutes(
             transporterCnpj: firstRow["Transportador (CNPJ/CPF)"],
             receiverName: firstRow["Destinador (Nome)"],
             receiverCnpj: firstRow["Destinador (CNPJ/CPF)"],
+            motorista: firstRow["Motorista"],
+            placa: firstRow["Placa"],
+            responsavelRecebimento: firstRow["Responsável pelo Recebimento"] || firstRow["Responsavel pelo Recebimento"],
+            justificativa: firstRow["Justificativa"],
+            observations: firstRow["Observação"] || firstRow["Observacao"],
             sinirStatus: firstRow["Situação"],
             systemStatus: "PENDENTE",
             isValid: false,
