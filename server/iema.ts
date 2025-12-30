@@ -1,5 +1,6 @@
 import { MtrWithItems, iemaConfig } from "@shared/schema";
 import { db } from "./db";
+import { sql, eq } from "drizzle-orm";
 
 // IEMA API Integration (Espírito Santo)
 // API Docs from manual provided
@@ -135,7 +136,7 @@ export class IemaService {
           tokenExpiresAt: this.tokenExpiresAt,
           updatedAt: new Date()
         })
-        .where(db.sql`1=1`);
+        .where(sql`1=1`);
 
       console.log("[IEMA] Authentication successful");
       return true;

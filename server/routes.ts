@@ -258,23 +258,16 @@ export async function registerRoutes(
 
   // === Batch Send ===
   app.post(api.batch.send.path, async (req, res) => {
-    const { mtrIds, mode } = req.body;
+    const { mtrIds, mode, platform = 'SINIR' } = req.body;
     
-    // In a real app, this would be a background job (Bull/Queue)
-    // For this demo, we'll process inline but return 'job started'
-    
-    const sinir = new SinirService();
     const jobId = `job_${Date.now()}`;
-    
-    // Fire and forget (or await if simple) - let's await for simplicity in this MVP
-    // In production: queue.add({ mtrIds, mode })
     
     (async () => {
       await storage.createLog({
         level: 'INFO',
         category: 'BATCH',
         message: `Batch ${jobId} started`,
-        details: { mode, count: mtrIds.length }
+        details: { mode, platform, count: mtrIds.length }
       });
 
       let sent = 0;
@@ -286,23 +279,31 @@ export async function registerRoutes(
           if (!mtr) continue;
 
           if (mode === 'REAL') {
-            const result = await sinir.sendMtrWithDetails(mtr);
+            let result: { success: boolean; message?: string; details?: any };
+            
+            if (platform === 'IEMA') {
+              const { IemaService } = await import("./iema");
+              const iema = new IemaService();
+              result = await iema.sendMtrWithDetails(mtr);
+            } else {
+              const sinir = new SinirService();
+              result = await sinir.sendMtrWithDetails(mtr);
+            }
             
             await storage.createLog({
               level: result.success ? 'INFO' : 'ERROR',
-              category: 'SINIR',
+              category: platform,
               message: `MTR ${mtr.mtrCode}: ${result.success ? 'Enviado com sucesso' : 'Falha no envio'}`,
               details: { mtrCode: mtr.mtrCode, response: result.details }
             });
 
             if (!result.success) {
               failed++;
-              await storage.updateMtrStatus(id, "ERRO", false, [result.message || 'Erro ao enviar para SINIR']);
+              await storage.updateMtrStatus(id, "ERRO", false, [result.message || `Erro ao enviar para ${platform}`]);
               continue;
             }
           } else {
-            // Simulated
-            await new Promise(r => setTimeout(r, 500)); // Fake latency
+            await new Promise(r => setTimeout(r, 500));
           }
 
           await storage.updateMtrStatus(id, "ENVIADO", true, []);
@@ -322,11 +323,11 @@ export async function registerRoutes(
         level: 'INFO',
         category: 'BATCH',
         message: `Batch ${jobId} completed`,
-        details: { sent, failed }
+        details: { sent, failed, platform }
       });
     })();
 
-    res.json({ jobId, message: "Batch processing started" });
+    res.json({ jobId, message: "Batch processing started", platform });
   });
 
   // === Logs ===
@@ -440,6 +441,82 @@ export async function registerRoutes(
       });
       
       res.json({ message: "Configuração salva com sucesso", updatedAt: saved.updatedAt });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // === IEMA Configuration ===
+  app.get("/api/iema/config", async (req, res) => {
+    const config = await storage.getIemaConfig();
+    if (config) {
+      res.json({
+        pessoaCodigo: config.pessoaCodigo || null,
+        pessoaCnpj: config.pessoaCnpj || "",
+        usuarioCpf: config.usuarioCpf || "",
+        senha: config.senha ? "********" : "",
+        ambiente: config.ambiente || "producao",
+        hasPassword: !!config.senha,
+        hasToken: !!config.token,
+        updatedAt: config.updatedAt
+      });
+    } else {
+      res.json({ pessoaCodigo: null, pessoaCnpj: "", usuarioCpf: "", senha: "", ambiente: "producao", hasPassword: false, hasToken: false });
+    }
+  });
+
+  app.post("/api/iema/config", async (req, res) => {
+    try {
+      const { pessoaCodigo, pessoaCnpj, usuarioCpf, senha, ambiente } = req.body;
+      
+      const existing = await storage.getIemaConfig();
+      const config: any = {
+        pessoaCodigo: pessoaCodigo || null,
+        pessoaCnpj: pessoaCnpj || null,
+        usuarioCpf: usuarioCpf || null,
+        ambiente: ambiente || "producao",
+      };
+      
+      if (senha && senha !== "********") {
+        config.senha = senha;
+      } else if (existing) {
+        config.senha = existing.senha;
+      }
+      
+      const saved = await storage.saveIemaConfig(config);
+      
+      await storage.createLog({
+        level: 'INFO',
+        category: 'CONFIG',
+        message: 'Configuração IEMA atualizada',
+        details: { pessoaCnpj: config.pessoaCnpj, usuarioCpf: config.usuarioCpf }
+      });
+      
+      res.json({ message: "Configuração IEMA salva com sucesso", updatedAt: saved.updatedAt });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // IEMA Test Connection
+  app.post("/api/iema/test", async (req, res) => {
+    try {
+      const { IemaService } = await import("./iema");
+      const iema = new IemaService();
+      const result = await iema.testConnection();
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+  });
+
+  // IEMA Reference Lists
+  app.get("/api/iema/lists", async (req, res) => {
+    try {
+      const { IemaService } = await import("./iema");
+      const iema = new IemaService();
+      const lists = await iema.getLists();
+      res.json(lists);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
