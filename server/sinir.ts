@@ -70,8 +70,9 @@ export class SinirService {
     const senha = process.env.SINIR_PASSWORD;
     const usuario = process.env.SINIR_USER;
     const preToken = process.env.SINIR_TOKEN;
+    const unidade = process.env.SINIR_UNIDADE;
     
-    return { cnpj, senha, usuario, preToken, unidade: undefined };
+    return { cnpj, senha, usuario, preToken, unidade };
   }
 
   // Authenticate with SINIR API - use credentials to get JWT token
