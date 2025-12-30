@@ -468,13 +468,34 @@ export class IemaService {
         return { success: false, message: "Falha na autenticação com IEMA API" };
       }
 
+      // Make a real API call to validate the token works
+      const baseUrl = this.getBaseUrl(credentials.ambiente);
+      const testResponse = await fetch(`${baseUrl}/retornaListaClasse`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.token}`,
+        },
+      });
+
+      if (!testResponse.ok) {
+        return { 
+          success: false, 
+          message: `Token autenticado mas API retornou erro: ${testResponse.status}` 
+        };
+      }
+
+      const testData = await testResponse.json();
+      const classCount = Array.isArray(testData) ? testData.length : 0;
+
       return { 
         success: true, 
-        message: "Conexão com IEMA API estabelecida com sucesso!",
+        message: "Conexão com IEMA API validada com sucesso!",
         details: { 
-          tokenConfigured: !!this.token,
+          tokenValido: true,
           ambiente: credentials.ambiente,
-          cnpj: credentials.pessoaCnpj ? `${credentials.pessoaCnpj.substring(0, 4)}...` : 'não configurado'
+          cnpj: credentials.pessoaCnpj ? `${credentials.pessoaCnpj.substring(0, 4)}...` : 'não configurado',
+          classesEncontradas: classCount
         }
       };
     } catch (error: any) {
