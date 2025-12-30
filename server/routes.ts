@@ -106,10 +106,12 @@ export async function registerRoutes(
           code: row["Resíduo Cód/Descrição"] ? String(row["Resíduo Cód/Descrição"]).split('-')[0].trim() : undefined,
           description: row["Resíduo Cód/Descrição"],
           quantity: parseFloat(String(row["Quantidade indicada"] || "0").replace(",", ".")) || 0,
-          quantityReceived: row["Quantidade Recebida"] ? parseFloat(String(row["Quantidade Recebida"]).replace(",", ".")) : undefined,
+          quantityReceived: row["Quantidade recebida"] ? parseFloat(String(row["Quantidade recebida"]).replace(",", ".")) : undefined,
           unit: row["Unidade"],
           treatment: row["Tratamento"],
-          class: row["Classe"]
+          class: row["Classe"],
+          justificativa: row["Justificativa"],
+          observacaoDestinador: row["Observação Destinador"]
         }));
 
         try {
@@ -123,12 +125,12 @@ export async function registerRoutes(
             transporterCnpj: firstRow["Transportador (CNPJ/CPF)"],
             receiverName: firstRow["Destinador (Nome)"],
             receiverCnpj: firstRow["Destinador (CNPJ/CPF)"],
-            motorista: firstRow["Motorista"],
-            placa: firstRow["Placa"],
-            responsavelRecebimento: firstRow["Responsável pelo Recebimento"] || firstRow["Responsavel pelo Recebimento"],
+            motorista: firstRow["Nome Motorista"],
+            placa: firstRow["Placa Veículo"],
+            responsavelRecebimento: firstRow["Responsável Recebimento"],
             justificativa: firstRow["Justificativa"],
-            observations: firstRow["Observação"] || firstRow["Observacao"],
-            sinirStatus: firstRow["Situação"],
+            observations: firstRow["Observação Destinador"] || firstRow["Observação Gerador"],
+            sinirStatus: firstRow["Situação"] || firstRow["Situacao"],
             systemStatus: "PENDENTE",
             isValid: false,
           }, items);
