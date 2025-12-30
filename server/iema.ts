@@ -475,18 +475,27 @@ export class IemaService {
 
       // Make a real API call to validate the token works
       const baseUrl = this.getBaseUrl(credentials.ambiente);
+      const authHeader = `Bearer ${this.token}`;
+      console.log("[IEMA] Test API call to:", `${baseUrl}/retornaListaClasse`);
+      console.log("[IEMA] Auth header:", authHeader.substring(0, 30) + "...");
+      
       const testResponse = await fetch(`${baseUrl}/retornaListaClasse`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.token}`,
+          'Authorization': authHeader,
         },
       });
 
+      console.log("[IEMA] Test response status:", testResponse.status);
+      
       if (!testResponse.ok) {
+        const errorBody = await testResponse.text();
+        console.log("[IEMA] Test response body:", errorBody);
         return { 
           success: false, 
-          message: `Token autenticado mas API retornou erro: ${testResponse.status}` 
+          message: `Token autenticado mas API retornou erro: ${testResponse.status}`,
+          details: { responseBody: errorBody }
         };
       }
 
