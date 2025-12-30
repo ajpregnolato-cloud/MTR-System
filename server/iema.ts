@@ -475,17 +475,31 @@ export class IemaService {
 
       // Make a real API call to validate the token works
       const baseUrl = this.getBaseUrl(credentials.ambiente);
-      const authHeader = `Bearer ${this.token}`;
+      // Try without Bearer prefix first (IEMA may not use it)
+      const tokenValue = this.token!;
       console.log("[IEMA] Test API call to:", `${baseUrl}/retornaListaClasse`);
-      console.log("[IEMA] Auth header:", authHeader.substring(0, 30) + "...");
+      console.log("[IEMA] Token (first 30 chars):", tokenValue.substring(0, 30) + "...");
       
-      const testResponse = await fetch(`${baseUrl}/retornaListaClasse`, {
+      // Try with just the token (no Bearer prefix)
+      let testResponse = await fetch(`${baseUrl}/retornaListaClasse`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': authHeader,
+          'Authorization': tokenValue,
         },
       });
+      
+      // If 401, try with Bearer prefix
+      if (testResponse.status === 401) {
+        console.log("[IEMA] Trying with Bearer prefix...");
+        testResponse = await fetch(`${baseUrl}/retornaListaClasse`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${tokenValue}`,
+          },
+        });
+      }
 
       console.log("[IEMA] Test response status:", testResponse.status);
       
