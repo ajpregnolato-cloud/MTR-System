@@ -104,76 +104,80 @@ export class SinirService {
     }
 
     try {
-      // Try new API endpoint first
       console.log("[SINIR] Attempting authentication with credentials...");
-      // Clean CPF from punctuation for usuario field
-      const cleanUsuario = usuario.replace(/\D/g, '');
-      const authPayload: any = {
-        cpfCnpj: cnpj,
-        usuario: cleanUsuario,
-        senha: senha,
-      };
-      if (unidade) {
-        authPayload.unidade = unidade;
-      }
+      
+      // Try different payload formats - SINIR documentation shows different formats
+      const payloadFormats = [
+        // Format 1: gettoken documented format (cpfCnpj, senha, unidade)
+        { cpfCnpj: cnpj, senha: senha, unidade: unidade || '' },
+        // Format 2: with usuario as CPF
+        { cpfCnpj: cnpj, usuario: usuario.replace(/\D/g, ''), senha: senha, unidade: unidade || '' },
+        // Format 3: cpfCnpj as usuario CPF instead of company CNPJ
+        { cpfCnpj: usuario.replace(/\D/g, ''), senha: senha, unidade: unidade || '' },
+      ];
+      
+      const authPayload = payloadFormats[0]; // Start with documented format
       console.log("[SINIR] Auth payload:", JSON.stringify({ ...authPayload, senha: "***" }));
       
       // Try multiple auth endpoints - gettoken is the documented SINIR endpoint
       const authEndpoints = [
-        { url: `${this.legacyBaseUrl}/gettoken`, name: 'gettoken (documented)' },
-        { url: `${this.baseUrl}/gettoken`, name: 'new API gettoken' },
-        { url: `${this.baseUrl}/autenticar`, name: 'new API autenticar' },
-        { url: `${this.legacyBaseUrl}/autenticar`, name: 'legacy API autenticar' },
+        { url: `${this.legacyBaseUrl}/gettoken`, name: 'gettoken' },
+        { url: `${this.baseUrl}/autenticar`, name: 'autenticar' },
       ];
 
+      // Try each endpoint with each payload format
       for (const endpoint of authEndpoints) {
-        try {
-          console.log(`[SINIR] Trying ${endpoint.name}: ${endpoint.url}`);
-          const response = await fetch(endpoint.url, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(authPayload),
-          });
+        for (let i = 0; i < payloadFormats.length; i++) {
+          const payload = payloadFormats[i];
+          try {
+            console.log(`[SINIR] Trying ${endpoint.name} format ${i + 1}: ${endpoint.url}`);
+            console.log(`[SINIR] Payload: ${JSON.stringify({ ...payload, senha: "***" })}`);
+            const response = await fetch(endpoint.url, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(payload),
+            });
 
-          const text = await response.text();
-          console.log(`[SINIR] ${endpoint.name} response status: ${response.status}`);
-          
-          // Skip HTML error pages
-          if (text.startsWith('<!') || text.startsWith('<html')) {
-            console.log(`[SINIR] ${endpoint.name} returned HTML, trying next...`);
+            const text = await response.text();
+            console.log(`[SINIR] ${endpoint.name} format ${i + 1} response status: ${response.status}`);
+            
+            // Skip HTML error pages
+            if (text.startsWith('<!') || text.startsWith('<html')) {
+              console.log(`[SINIR] ${endpoint.name} returned HTML, trying next...`);
+              continue;
+            }
+
+            const data: SinirAuthResponse = JSON.parse(text);
+            console.log("[SINIR] Auth response:", JSON.stringify(data, null, 2));
+
+            if (data.erro) {
+              console.log(`[SINIR] ${endpoint.name} format ${i + 1} failed: ${data.mensagem}`);
+              continue;
+            }
+
+            // Extract token from response - gettoken returns Bearer token as string
+            if (typeof data.objetoResposta === 'string' && data.objetoResposta.length > 10) {
+              // gettoken returns the token with "Bearer " prefix already included
+              this.token = data.objetoResposta.startsWith('Bearer ') 
+                ? data.objetoResposta 
+                : `Bearer ${data.objetoResposta}`;
+              console.log("[SINIR] Authentication successful - got token from " + endpoint.name);
+              return true;
+            } else if (typeof data.objetoResposta === 'object' && data.objetoResposta?.token) {
+              this.token = `${data.objetoResposta.tipo || 'Bearer'} ${data.objetoResposta.token}`;
+              console.log("[SINIR] Authentication successful - got JWT token object");
+              return true;
+            }
+          } catch (error: any) {
+            console.log(`[SINIR] ${endpoint.name} format ${i + 1} error: ${error.message}`);
             continue;
           }
-
-          const data: SinirAuthResponse = JSON.parse(text);
-          console.log("[SINIR] Auth response:", JSON.stringify(data, null, 2));
-
-          if (data.erro) {
-            console.log(`[SINIR] ${endpoint.name} failed: ${data.mensagem}`);
-            continue;
-          }
-
-          // Extract token from response - gettoken returns Bearer token as string
-          if (typeof data.objetoResposta === 'string' && data.objetoResposta.length > 10) {
-            // gettoken returns the token with "Bearer " prefix already included
-            this.token = data.objetoResposta.startsWith('Bearer ') 
-              ? data.objetoResposta 
-              : `Bearer ${data.objetoResposta}`;
-            console.log("[SINIR] Authentication successful - got token from " + endpoint.name);
-            return true;
-          } else if (typeof data.objetoResposta === 'object' && data.objetoResposta?.token) {
-            this.token = `${data.objetoResposta.tipo || 'Bearer'} ${data.objetoResposta.token}`;
-            console.log("[SINIR] Authentication successful - got JWT token object");
-            return true;
-          }
-        } catch (error: any) {
-          console.log(`[SINIR] ${endpoint.name} error: ${error.message}`);
-          continue;
         }
       }
 
-      console.error("[SINIR] All authentication endpoints failed");
+      console.error("[SINIR] All authentication endpoints and formats failed");
       return false;
     } catch (error: any) {
       console.error("[SINIR] Authentication error:", error.message);
