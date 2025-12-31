@@ -80,6 +80,7 @@ export const sinirConfig = pgTable("sinir_config", {
   senha: text("senha"),
   unidade: text("unidade"),
   token: text("token"),
+  responsavelNome: text("responsavel_nome"), // Nome fixo do responsável pelo recebimento
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
@@ -93,6 +94,7 @@ export const iemaConfig = pgTable("iema_config", {
   token: text("token"),
   tokenExpiresAt: timestamp("token_expires_at"), // Token válido por 1 hora
   ambiente: text("ambiente").default("producao"), // homologacao ou producao
+  responsavelNome: text("responsavel_nome"), // Nome fixo do responsável pelo recebimento
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 

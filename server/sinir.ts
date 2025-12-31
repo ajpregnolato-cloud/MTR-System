@@ -270,13 +270,17 @@ export class SinirService {
       }
     }
 
+    // Get configured default responsible name from database
+    const dbConfig = await db.select().from(sinirConfig).limit(1);
+    const defaultResponsavel = dbConfig.length > 0 ? dbConfig[0].responsavelNome : null;
+
     // Build payload as array according to SINIR docs
     const payload: ManifestoRecebimento[] = mtrs.map(mtr => ({
       manNumero: mtr.mtrCode,
       dataRecebimento: new Date().getTime(),
       nomeMotorista: mtr.motorista || undefined,
       placaVeiculo: mtr.placa || undefined,
-      nomeResponsavelRecebimento: mtr.responsavelRecebimento || "Responsável Técnico",
+      nomeResponsavelRecebimento: mtr.responsavelRecebimento || defaultResponsavel || "Responsável Técnico",
       observacoes: mtr.observations || `Recebido via integração - ${new Date().toLocaleDateString('pt-BR')}`,
       listaManifestoResiduos: mtr.items.map(item => {
         const qty = Number(item.quantity) || 0;

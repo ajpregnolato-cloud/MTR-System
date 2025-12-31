@@ -100,6 +100,7 @@ export class IemaService {
         token: config.token || undefined,
         tokenExpiresAt: config.tokenExpiresAt || undefined,
         ambiente: config.ambiente || "producao",
+        responsavelNome: config.responsavelNome || undefined,
       };
     }
     return { 
@@ -109,7 +110,8 @@ export class IemaService {
       senha: undefined, 
       token: undefined, 
       tokenExpiresAt: undefined,
-      ambiente: "producao" 
+      ambiente: "producao",
+      responsavelNome: undefined,
     };
   }
 
@@ -254,6 +256,9 @@ export class IemaService {
     const credentials = await this.getCredentials();
     const baseUrl = this.getBaseUrl(credentials.ambiente);
     const today = this.formatDate(new Date());
+    
+    // Get configured default responsible name
+    const defaultResponsavel = credentials.responsavelNome || null;
 
     // Build payload per manual section 12
     // Validate required fields before building payload
@@ -263,7 +268,7 @@ export class IemaService {
       if (!mtr.transporterCnpj) errors.push(`MTR ${mtr.mtrCode}: CNPJ do transportador não informado`);
       if (!mtr.motorista) errors.push(`MTR ${mtr.mtrCode}: Nome do motorista não informado`);
       if (!mtr.placa) errors.push(`MTR ${mtr.mtrCode}: Placa do veículo não informada`);
-      if (!mtr.responsavelRecebimento) errors.push(`MTR ${mtr.mtrCode}: Responsável pelo recebimento não informado`);
+      if (!mtr.responsavelRecebimento && !defaultResponsavel) errors.push(`MTR ${mtr.mtrCode}: Responsável pelo recebimento não informado`);
       if (mtr.items.length === 0) errors.push(`MTR ${mtr.mtrCode}: Nenhum resíduo informado`);
     });
     
@@ -282,7 +287,7 @@ export class IemaService {
         manifestoCodigo,
         cnpGerador: mtr.generatorCnpj!.replace(/\D/g, ''),
         cnpTransportador: mtr.transporterCnpj!.replace(/\D/g, ''),
-        recebimentoMtrResponsavel: mtr.responsavelRecebimento!,
+        recebimentoMtrResponsavel: mtr.responsavelRecebimento || defaultResponsavel!,
         recebimentoMtrCargo: "Responsável Técnico", // Default cargo per common usage
         recebimentoMtrData: today,
         recebimentoMtrObs: mtr.observations || "",
