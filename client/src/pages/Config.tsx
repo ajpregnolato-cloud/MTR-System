@@ -17,6 +17,7 @@ type SinirConfigForm = {
   senha: string;
   unidade: string;
   token: string;
+  responsavelNome: string;
 };
 
 type SinirConfigResponse = {
@@ -25,6 +26,7 @@ type SinirConfigResponse = {
   senha: string;
   unidade: string;
   token: string;
+  responsavelNome: string;
   hasPassword: boolean;
   hasToken: boolean;
   updatedAt: string | null;
@@ -36,6 +38,7 @@ type IemaConfigForm = {
   usuarioCpf: string;
   senha: string;
   ambiente: "homologacao" | "producao";
+  responsavelNome: string;
 };
 
 type IemaConfigResponse = {
@@ -44,6 +47,7 @@ type IemaConfigResponse = {
   usuarioCpf: string;
   senha: string;
   ambiente: string;
+  responsavelNome: string;
   hasPassword: boolean;
   hasToken: boolean;
   updatedAt: string | null;
@@ -70,6 +74,7 @@ export default function Config() {
       senha: "",
       unidade: "",
       token: "",
+      responsavelNome: "",
     },
   });
 
@@ -80,6 +85,7 @@ export default function Config() {
       usuarioCpf: "",
       senha: "",
       ambiente: "producao",
+      responsavelNome: "",
     },
   });
 
@@ -91,6 +97,7 @@ export default function Config() {
         senha: sinirConfig.senha || "",
         unidade: sinirConfig.unidade || "",
         token: sinirConfig.token || "",
+        responsavelNome: sinirConfig.responsavelNome || "",
       });
     }
   }, [sinirConfig]);
@@ -103,6 +110,7 @@ export default function Config() {
         usuarioCpf: iemaConfig.usuarioCpf || "",
         senha: iemaConfig.senha || "",
         ambiente: (iemaConfig.ambiente as "homologacao" | "producao") || "producao",
+        responsavelNome: iemaConfig.responsavelNome || "",
       });
     }
   }, [iemaConfig]);
@@ -307,6 +315,19 @@ export default function Config() {
                   </p>
                 </div>
 
+                <div className="space-y-2">
+                  <Label htmlFor="sinir-responsavel">Nome do Responsável pelo Recebimento</Label>
+                  <Input
+                    id="sinir-responsavel"
+                    placeholder="Ex: Antonio José Pregnolato"
+                    {...sinirForm.register("responsavelNome")}
+                    data-testid="input-sinir-responsavel"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Nome exatamente como cadastrado no SINIR (com acentos). Será usado como padrão nos envios.
+                  </p>
+                </div>
+
                 <div className="flex items-center gap-3 pt-4">
                   <Button
                     type="submit"
@@ -446,6 +467,19 @@ export default function Config() {
                   </Select>
                   <p className="text-xs text-muted-foreground">
                     Use "Homologação" para testes e "Produção" para envio real.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="iema-responsavel">Nome do Responsável pelo Recebimento</Label>
+                  <Input
+                    id="iema-responsavel"
+                    placeholder="Ex: Antonio José Pregnolato"
+                    {...iemaForm.register("responsavelNome")}
+                    data-testid="input-iema-responsavel"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Nome exatamente como cadastrado no IEMA (com acentos). Será usado como padrão nos envios.
                   </p>
                 </div>
 

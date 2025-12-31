@@ -527,24 +527,26 @@ export async function registerRoutes(
         senha: config.senha ? "********" : "",
         unidade: config.unidade || "",
         token: config.token ? config.token.substring(0, 20) + "..." : "",
+        responsavelNome: config.responsavelNome || "",
         hasPassword: !!config.senha,
         hasToken: !!config.token,
         updatedAt: config.updatedAt
       });
     } else {
-      res.json({ cnpj: "", usuario: "", senha: "", unidade: "", token: "", hasPassword: false, hasToken: false });
+      res.json({ cnpj: "", usuario: "", senha: "", unidade: "", token: "", responsavelNome: "", hasPassword: false, hasToken: false });
     }
   });
 
   app.post("/api/config", async (req, res) => {
     try {
-      const { cnpj, usuario, senha, unidade, token } = req.body;
+      const { cnpj, usuario, senha, unidade, token, responsavelNome } = req.body;
       
       const existing = await storage.getSinirConfig();
       const config: any = {
         cnpj: cnpj || null,
         usuario: usuario || null,
         unidade: unidade || null,
+        responsavelNome: responsavelNome || null,
       };
       
       if (senha && senha !== "********") {
@@ -584,18 +586,19 @@ export async function registerRoutes(
         usuarioCpf: config.usuarioCpf || "",
         senha: config.senha ? "********" : "",
         ambiente: config.ambiente || "producao",
+        responsavelNome: config.responsavelNome || "",
         hasPassword: !!config.senha,
         hasToken: !!config.token,
         updatedAt: config.updatedAt
       });
     } else {
-      res.json({ pessoaCodigo: null, pessoaCnpj: "", usuarioCpf: "", senha: "", ambiente: "producao", hasPassword: false, hasToken: false });
+      res.json({ pessoaCodigo: null, pessoaCnpj: "", usuarioCpf: "", senha: "", ambiente: "producao", responsavelNome: "", hasPassword: false, hasToken: false });
     }
   });
 
   app.post("/api/iema/config", async (req, res) => {
     try {
-      const { pessoaCodigo, pessoaCnpj, usuarioCpf, senha, ambiente } = req.body;
+      const { pessoaCodigo, pessoaCnpj, usuarioCpf, senha, ambiente, responsavelNome } = req.body;
       
       const existing = await storage.getIemaConfig();
       const config: any = {
@@ -603,6 +606,7 @@ export async function registerRoutes(
         pessoaCnpj: pessoaCnpj || null,
         usuarioCpf: usuarioCpf || null,
         ambiente: ambiente || "producao",
+        responsavelNome: responsavelNome || null,
       };
       
       if (senha && senha !== "********") {
