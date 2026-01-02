@@ -196,14 +196,15 @@ export default function Config() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold" data-testid="text-config-title">Configurações</h1>
         <p className="text-muted-foreground">
-          Configure as credenciais para conexão com as APIs SINIR e IEMA
+          Configure as credenciais para conexão com a API SINIR
         </p>
       </div>
 
       <Tabs defaultValue="sinir" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-2" data-testid="tabs-platform">
+        {/* IEMA oculto temporariamente - mostrar apenas SINIR */}
+        <TabsList className="grid w-full grid-cols-1" data-testid="tabs-platform">
           <TabsTrigger value="sinir" data-testid="tab-sinir">SINIR (Nacional)</TabsTrigger>
-          <TabsTrigger value="iema" data-testid="tab-iema">IEMA (Espírito Santo)</TabsTrigger>
+          {/* <TabsTrigger value="iema" data-testid="tab-iema">IEMA (Espírito Santo)</TabsTrigger> */}
         </TabsList>
 
         <TabsContent value="sinir">
