@@ -375,29 +375,64 @@ export class IemaService {
     const credentials = await this.getCredentials();
     const baseUrl = this.getBaseUrl(credentials.ambiente);
 
-    try {
-      // Correct endpoint per manual section 16: retornaManifesto/{CODIGO_BARRA}
-      const response = await fetch(`${baseUrl}/retornaManifesto/${barcode}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.token}`,
-        },
-      });
-
-      const data = await response.json();
-      console.log("[IEMA] Get manifest response:", JSON.stringify(data, null, 2));
-
-      if (data.retornoCodigo !== 0) {
-        console.error("[IEMA] Get manifest failed:", data.retorno);
-        return null;
-      }
-
-      return data;
-    } catch (error: any) {
-      console.error("[IEMA] Get manifest error:", error.message);
-      return null;
+    // Try different code formats
+    const codesToTry = [barcode];
+    
+    // If it's a short code (10 digits), also try padded version
+    const cleanCode = barcode.replace(/\D/g, '');
+    if (cleanCode.length === 10 && cleanCode !== barcode) {
+      codesToTry.push(cleanCode);
     }
+    
+    // If it's 34 digits (full barcode), extract the 10-digit manifest code
+    if (cleanCode.length === 34) {
+      codesToTry.push(cleanCode.substring(0, 10));
+    }
+
+    for (const code of codesToTry) {
+      try {
+        console.log(`[IEMA] Trying to fetch manifest with code: ${code}`);
+        
+        // Try retornaManifesto endpoint (section 16)
+        const response = await fetch(`${baseUrl}/retornaManifesto/${code}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.token}`,
+          },
+        });
+
+        const text = await response.text();
+        console.log(`[IEMA] Get manifest response status: ${response.status}`);
+        console.log(`[IEMA] Get manifest response (first 500 chars): ${text.substring(0, 500)}`);
+        
+        // Check if response is HTML (error page)
+        if (text.startsWith('<!') || text.startsWith('<html')) {
+          console.log("[IEMA] Received HTML response, trying next format...");
+          continue;
+        }
+        
+        if (!text || text.trim() === '') {
+          console.log("[IEMA] Empty response, trying next format...");
+          continue;
+        }
+
+        const data = JSON.parse(text);
+
+        if (data.retornoCodigo !== 0) {
+          console.error("[IEMA] Get manifest failed:", data.retorno);
+          continue;
+        }
+
+        return data;
+      } catch (error: any) {
+        console.error(`[IEMA] Get manifest error for code ${code}:`, error.message);
+        continue;
+      }
+    }
+    
+    console.error("[IEMA] All manifest fetch attempts failed");
+    return null;
   }
 
   async getManifestsByDate(date: string): Promise<any[]> {
