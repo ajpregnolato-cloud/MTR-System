@@ -907,15 +907,15 @@ export async function registerRoutes(
     res.json({ success: true, deleted });
   });
 
-  // Import MTR from SINIR into local database
+  // Import MTR from SINIR into session storage (in-memory)
   app.post("/api/sinir/import/:code", async (req, res) => {
     const mtrCode = req.params.code;
     
     try {
-      // Check if already exists
-      const existing = await storage.getMtrByCode(mtrCode);
+      // Check if already exists in session
+      const existing = sessionStorage.getMtrByCode(mtrCode);
       if (existing) {
-        return res.status(400).json({ message: "MTR já existe no sistema" });
+        return res.status(400).json({ message: "MTR já existe na sessão" });
       }
 
       // Fetch from SINIR
@@ -926,33 +926,40 @@ export async function registerRoutes(
         return res.status(404).json({ message: "MTR não encontrado no SINIR" });
       }
 
-      // Map SINIR data to local schema
+      // Map SINIR data to session storage format
       const mtrData = {
         mtrCode: sinirData.manNumero || mtrCode,
+        platform: "SINIR" as const,
         manifestType: sinirData.tipoManifesto || "MTR",
         emissionDate: sinirData.dataEmissao ? new Date(sinirData.dataEmissao) : new Date(),
-        generatorName: sinirData.geradorNome || sinirData.gerNome,
-        generatorCnpj: sinirData.geradorCnpj || sinirData.gerCpfCnpj,
-        transporterName: sinirData.transportadorNome || sinirData.traNome,
-        transporterCnpj: sinirData.transportadorCnpj || sinirData.traCpfCnpj,
-        receiverName: sinirData.destinadorNome || sinirData.desNome,
-        receiverCnpj: sinirData.destinadorCnpj || sinirData.desCpfCnpj,
-        sinirStatus: sinirData.situacao || "SALVO",
+        generatorName: sinirData.parceiroGerador?.parDescricao || sinirData.geradorNome || sinirData.gerNome,
+        generatorCnpj: sinirData.parceiroGerador?.parCnpj || sinirData.geradorCnpj || sinirData.gerCpfCnpj,
+        transporterName: sinirData.parceiroTransportador?.parDescricao || sinirData.transportadorNome || sinirData.traNome,
+        transporterCnpj: sinirData.parceiroTransportador?.parCnpj || sinirData.transportadorCnpj || sinirData.traCpfCnpj,
+        receiverName: sinirData.parceiroDestinador?.parDescricao || sinirData.destinadorNome || sinirData.desNome,
+        receiverCnpj: sinirData.parceiroDestinador?.parCnpj || sinirData.destinadorCnpj || sinirData.desCpfCnpj,
+        motorista: sinirData.manNomeMotorista || null,
+        placa: sinirData.manPlacaVeiculo || null,
+        sinirStatus: sinirData.situacaoManifesto?.simDescricao || sinirData.situacao || "SALVO",
         systemStatus: "PENDENTE" as const,
+        observations: sinirData.manObservacao || null,
+        isValid: false,
+        validationErrors: null,
       };
 
-      // Map residues
-      const items = (sinirData.listaManifestoResiduos || sinirData.residuos || []).map((r: any) => ({
-        code: r.resCodigoIbama || r.resCodigo,
-        description: r.resDescricao || r.descricao,
+      // Map residues from SINIR response
+      const residues = sinirData.listaManifestoResiduo || sinirData.listaManifestoResiduos || sinirData.residuos || [];
+      const items = residues.map((r: any) => ({
+        code: r.residuo?.resCodigoIbama || r.resCodigoIbama || r.resCodigo,
+        description: r.residuo?.resDescricao || r.resDescricao || r.descricao,
         quantity: String(r.marQuantidade || r.quantidade || 0),
-        unit: r.uniDescricao || r.unidade || "Tonelada",
-        treatment: r.traDescricao || r.tratamento,
-        class: r.claDescricao || r.classe,
+        unit: r.unidade?.uniDescricao || r.uniDescricao || r.unidade || "Tonelada",
+        treatment: r.tratamento?.traDescricao || r.traDescricao || r.tratamento,
+        class: r.classe?.claDescricao || r.claDescricao || r.classe,
       }));
 
-      // Create in database
-      const newMtr = await storage.createMtr(mtrData, items);
+      // Add to session storage
+      const newMtr = sessionStorage.addMtr(mtrData, items);
 
       await storage.createLog({
         level: 'INFO',
@@ -961,7 +968,7 @@ export async function registerRoutes(
         details: { mtrId: newMtr.id }
       });
 
-      res.json({ message: `MTR ${mtrCode} importado com sucesso`, mtr: newMtr });
+      res.json({ message: `MTR ${mtrCode} importado com sucesso`, mtr: sessionStorage.toMtrWithItems(newMtr) });
     } catch (error: any) {
       await storage.createLog({
         level: 'ERROR',
@@ -973,16 +980,16 @@ export async function registerRoutes(
     }
   });
 
-  // Import MTR from IEMA into local database
+  // Import MTR from IEMA into session storage (in-memory)
   // Manual section 16: retornaManifesto/{CODIGO_BARRA} response structure
   app.post("/api/iema/import/:code", async (req, res) => {
     const mtrCode = req.params.code;
     
     try {
-      // Check if already exists
-      const existing = await storage.getMtrByCode(mtrCode);
+      // Check if already exists in session
+      const existing = sessionStorage.getMtrByCode(mtrCode);
       if (existing) {
-        return res.status(400).json({ message: "MTR já existe no sistema" });
+        return res.status(400).json({ message: "MTR já existe na sessão" });
       }
 
       // Fetch from IEMA
@@ -1040,12 +1047,14 @@ export async function registerRoutes(
         generatorCnpj: iemaData.cnpGerador,
         transporterCnpj: iemaData.cnpTransportador,
         receiverCnpj: iemaData.cnpDestinador,
-        motorista: iemaData.manifTransportadorNomeMotorista || undefined,
-        placa: iemaData.manifTransportadorPlacaVeiculo || undefined,
-        responsavelRecebimento: iemaData.manifGeradorNomeResponsavel || undefined,
+        motorista: iemaData.manifTransportadorNomeMotorista || null,
+        placa: iemaData.manifTransportadorPlacaVeiculo || null,
+        responsavelRecebimento: iemaData.manifGeradorNomeResponsavel || null,
         sinirStatus: mapIemaStatus(iemaData.situacaoManifestoCodigo),
         systemStatus: "PENDENTE" as const,
-        observations: iemaData.manifObservacao || undefined,
+        observations: iemaData.manifObservacao || null,
+        isValid: false,
+        validationErrors: null,
       };
 
       // Map residues from itemManifestoJSONs
@@ -1054,12 +1063,12 @@ export async function registerRoutes(
         description: r.manifestoItemObservacao || `Resíduo ${r.residuo}`,
         quantity: String(r.quantidade || 0),
         unit: mapUnitCode(r.codigoUnidade),
-        treatment: r.codigoTecnologia ? `Tecnologia ${r.codigoTecnologia}` : undefined,
-        class: r.codigoClasse ? `Classe ${r.codigoClasse}` : undefined,
+        treatment: r.codigoTecnologia ? `Tecnologia ${r.codigoTecnologia}` : null,
+        class: r.codigoClasse ? `Classe ${r.codigoClasse}` : null,
       }));
 
-      // Create in database
-      const newMtr = await storage.createMtr(mtrData, items);
+      // Add to session storage
+      const newMtr = sessionStorage.addMtr(mtrData, items);
 
       await storage.createLog({
         level: 'INFO',
@@ -1068,7 +1077,7 @@ export async function registerRoutes(
         details: { mtrId: newMtr.id, manifestoCodigo: iemaData.manifestoCodigo }
       });
 
-      res.json({ message: `MTR ${mtrCode} importado com sucesso`, mtr: newMtr });
+      res.json({ message: `MTR ${mtrCode} importado com sucesso`, mtr: sessionStorage.toMtrWithItems(newMtr) });
     } catch (error: any) {
       await storage.createLog({
         level: 'ERROR',
