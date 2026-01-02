@@ -1,9 +1,10 @@
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, FileText, Settings, ShieldAlert } from "lucide-react";
+import { LayoutDashboard, FileText, Settings, ShieldAlert, Award } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const items = [
   { label: "Painel Principal", href: "/", icon: LayoutDashboard },
+  { label: "CDF - Certificado", href: "/cdf", icon: Award },
   { label: "Logs e Auditoria", href: "/logs", icon: FileText },
   { label: "Configurações", href: "/config", icon: Settings },
   { label: "Status da API", href: "/status", icon: ShieldAlert, disabled: true },
