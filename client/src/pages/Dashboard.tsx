@@ -93,7 +93,7 @@ export default function Dashboard() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-slate-900 font-display">MTR Receiver</h1>
-          <p className="text-slate-500 mt-1">Gerencie, valide e processe manifestos de resíduos (SINIR/IEMA).</p>
+          <p className="text-slate-500 mt-1">Gerencie, valide e processe manifestos de resíduos SINIR.</p>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
           <Button variant="outline" onClick={() => validateMutation.mutate(selectedIds.length ? selectedIds : undefined)}>
@@ -101,6 +101,7 @@ export default function Dashboard() {
             Validar {selectedIds.length > 0 ? `(${selectedIds.length})` : 'Todos'}
           </Button>
           <div className="flex items-center gap-2">
+            {/* IEMA oculto temporariamente - remover comentário quando implementado
             <Select value={platform} onValueChange={(v) => setPlatform(v as Platform)}>
               <SelectTrigger className="w-[120px]" data-testid="select-platform">
                 <Building2 className="mr-2 h-4 w-4" />
@@ -111,6 +112,7 @@ export default function Dashboard() {
                 <SelectItem value="IEMA">IEMA</SelectItem>
               </SelectContent>
             </Select>
+            */}
             <div className="relative">
               <input 
                 type="file" 

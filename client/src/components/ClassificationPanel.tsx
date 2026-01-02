@@ -168,6 +168,7 @@ export function ClassificationPanel() {
             Comparar com Planilha de Classificação
           </CardTitle>
           <div className="flex items-center gap-2">
+            {/* IEMA oculto temporariamente
             <Select value={classificationPlatform} onValueChange={(v) => setClassificationPlatform(v as Platform)}>
               <SelectTrigger className="w-24" data-testid="select-classification-platform">
                 <SelectValue />
@@ -177,6 +178,7 @@ export function ClassificationPanel() {
                 <SelectItem value="IEMA">IEMA</SelectItem>
               </SelectContent>
             </Select>
+            */}
             <Button 
               variant="ghost" 
               size="sm"
