@@ -947,7 +947,7 @@ export async function registerRoutes(
         validationErrors: null,
       };
 
-      // Map residues from SINIR response
+      // Map residues from SINIR response with original codes
       const residues = sinirData.listaManifestoResiduo || sinirData.listaManifestoResiduos || sinirData.residuos || [];
       const items = residues.map((r: any) => ({
         code: r.residuo?.resCodigoIbama || r.resCodigoIbama || r.resCodigo,
@@ -956,6 +956,13 @@ export async function registerRoutes(
         unit: r.unidade?.uniDescricao || r.uniDescricao || r.unidade || "Tonelada",
         treatment: r.tratamento?.traDescricao || r.traDescricao || r.tratamento,
         class: r.classe?.claDescricao || r.claDescricao || r.classe,
+        // Preserve original SINIR codes for sending back
+        uniCodigo: r.unidade?.uniCodigo || r.uniCodigo || null,
+        traCodigo: r.tratamento?.traCodigo || r.traCodigo || null,
+        tieCodigo: r.tipoEstado?.tieCodigo || r.tieCodigo || null,
+        claCodigo: r.classe?.claCodigo || r.claCodigo || null,
+        tiaCodigo: r.tipoAcondicionamento?.tiaCodigo || r.tiaCodigo || null,
+        resCodigo: r.residuo?.resCodigo || r.resCodigo || null,
       }));
 
       // Add to session storage

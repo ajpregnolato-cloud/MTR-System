@@ -53,13 +53,21 @@ export const mtrItems = pgTable("mtr_items", {
   id: serial("id").primaryKey(),
   mtrId: integer("mtr_id").references(() => mtrs.id).notNull(),
   
-  code: text("code"), // Resíduo Cód
+  code: text("code"), // Resíduo Cód (resCodigoIbama)
   description: text("description"), // Resíduo Descrição
   quantity: decimal("quantity", { precision: 10, scale: 3 }), // Quantidade indicada
   quantityReceived: decimal("quantity_received", { precision: 10, scale: 3 }), // Quantidade recebida
-  unit: text("unit"), // Unidade
-  treatment: text("treatment"), // Tratamento
-  class: text("class"), // Classe
+  unit: text("unit"), // Unidade (texto)
+  treatment: text("treatment"), // Tratamento (texto)
+  class: text("class"), // Classe (texto)
+  
+  // Original SINIR codes for API calls
+  uniCodigo: integer("uni_codigo"), // Código da unidade (1=KG, 2=L, 3=TON, etc)
+  traCodigo: integer("tra_codigo"), // Código do tratamento
+  tieCodigo: integer("tie_codigo"), // Código do tipo estado físico
+  claCodigo: integer("cla_codigo"), // Código da classe
+  tiaCodigo: integer("tia_codigo"), // Código do tipo acondicionamento
+  resCodigo: integer("res_codigo"), // Código interno do resíduo
 });
 
 // Logs (Application & Batch)
