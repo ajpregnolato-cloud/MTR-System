@@ -60,14 +60,26 @@ export const mtrItems = pgTable("mtr_items", {
   unit: text("unit"), // Unidade (texto)
   treatment: text("treatment"), // Tratamento (texto)
   class: text("class"), // Classe (texto)
+  physicalState: text("physical_state"), // Estado Físico (texto)
+  packaging: text("packaging"), // Acondicionamento (texto)
+  
+  // Additional fields for SINIR API
+  numeroOnu: text("numero_onu"), // Número ONU (resíduos perigosos)
+  classeRisco: text("classe_risco"), // Classe de Risco
+  nomeEmbarque: text("nome_embarque"), // Nome de Embarque
+  grupoEmbalagem: text("grupo_embalagem"), // Grupo de Embalagem (I, II, III, N/A)
+  codigoInterno: text("codigo_interno"), // Código Interno da empresa
+  descricaoInterna: text("descricao_interna"), // Descrição Interna
+  observacaoItem: text("observacao_item"), // Observação do item
+  densidade: decimal("densidade", { precision: 10, scale: 4 }), // Densidade
   
   // Original SINIR codes for API calls
-  uniCodigo: integer("uni_codigo"), // Código da unidade (1=KG, 2=L, 3=TON, etc)
+  uniCodigo: integer("uni_codigo"), // Código da unidade
   traCodigo: integer("tra_codigo"), // Código do tratamento
   tieCodigo: integer("tie_codigo"), // Código do tipo estado físico
   claCodigo: integer("cla_codigo"), // Código da classe
   tiaCodigo: integer("tia_codigo"), // Código do tipo acondicionamento
-  resCodigo: integer("res_codigo"), // Código interno do resíduo
+  resCodigo: integer("res_codigo"), // Código interno do resíduo SINIR
 });
 
 // Logs (Application & Batch)
