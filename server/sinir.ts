@@ -827,74 +827,93 @@ export class SinirService {
     }
   }
 
-  // Emit (finalize) CDF
+  // Emit (finalize) CDF - uses /emiteCDF endpoint from SINIR API
   async emitirCdf(cdfData: {
     periodoInicio: string;
     periodoFim: string;
     responsavelTecnico: { cpf: string; nome: string };
     manifestos: string[];
     observacoes?: string;
-  }): Promise<{ success: boolean; cdfNumero?: string; message: string; details?: any }> {
+  }): Promise<{ success: boolean; cdfNumero?: string; cdfCodigo?: number; message: string; details?: any }> {
     const authenticated = await this.authenticate(true); // Force JWT
     if (!authenticated) {
       return { success: false, message: "Falha na autenticação" };
     }
 
     try {
-      const credentials = await this.getCredentials();
-
-      // Build CDF payload based on SINIR documentation
+      // Build CDF payload based on official SINIR Swagger documentation
+      // Endpoint: POST /emiteCDF
       const payload = {
-        periodoInicio: new Date(cdfData.periodoInicio).getTime(),
-        periodoFim: new Date(cdfData.periodoFim).getTime(),
-        responsavelTecnico: {
-          cpf: cdfData.responsavelTecnico.cpf.replace(/\D/g, ''),
-          nome: cdfData.responsavelTecnico.nome,
-        },
-        listaManifestos: cdfData.manifestos.map(m => ({ manNumero: m })),
+        listaManifestos: cdfData.manifestos, // Array of MTR numbers
+        dataEmissao: new Date().getTime(), // Current timestamp
+        nomeResponsavel: cdfData.responsavelTecnico.nome,
         observacoes: cdfData.observacoes || '',
-        unidade: credentials.unidade,
       };
 
       console.log("[SINIR] Emitting CDF with payload:", JSON.stringify(payload, null, 2));
 
-      const endpoints = [
-        `${this.legacyBaseUrl}/emitirCdf`,
-        `${this.legacyBaseUrl}/cdf/emitir`,
-        `${this.baseUrl}/cdf/emitir`,
-      ];
+      // Use the official endpoint from Swagger: /emiteCDF
+      const endpoint = `${this.baseUrl}/emiteCDF`;
+      console.log(`[SINIR] Calling: ${endpoint}`);
+      
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': this.token!,
+        },
+        body: JSON.stringify(payload),
+      });
 
-      for (const endpoint of endpoints) {
-        try {
-          console.log(`[SINIR] Trying to emit CDF at: ${endpoint}`);
-          const response = await fetch(endpoint, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': this.token!,
-            },
-            body: JSON.stringify(payload),
-          });
+      const data = await response.json();
+      console.log(`[SINIR] Emit CDF response:`, JSON.stringify(data, null, 2));
 
-          const data = await response.json();
-          console.log(`[SINIR] Emit CDF response:`, JSON.stringify(data, null, 2));
-
-          if (!data.erro && response.ok) {
-            return {
-              success: true,
-              cdfNumero: data.objetoResposta?.cdfNumero || data.objetoResposta?.numero,
-              message: data.mensagem || "CDF emitido com sucesso",
-              details: data.objetoResposta,
-            };
-          } else if (data.mensagem) {
-            return { success: false, message: data.mensagem, details: data };
-          }
-        } catch (error) {
-          console.log(`[SINIR] Endpoint ${endpoint} failed:`, error);
-        }
+      if (!data.erro && response.ok) {
+        return {
+          success: true,
+          cdfNumero: data.objetoResposta?.cdfNumero || data.objetoResposta?.numero,
+          cdfCodigo: data.objetoResposta?.cdfCodigo,
+          message: data.mensagem || "CDF emitido com sucesso",
+          details: data.objetoResposta,
+        };
+      } else {
+        return { 
+          success: false, 
+          message: data.mensagem || "Erro ao emitir CDF", 
+          details: data 
+        };
       }
+    } catch (error: any) {
+      console.log(`[SINIR] Emit CDF error:`, error);
+      return { success: false, message: error.message };
+    }
+  }
 
-      return { success: false, message: "Não foi possível emitir o CDF" };
+  // Download CDF PDF
+  async downloadCdfPdf(cdfCodigo: string): Promise<{ success: boolean; pdf?: Buffer; message?: string }> {
+    const authenticated = await this.authenticate();
+    if (!authenticated) {
+      return { success: false, message: "Falha na autenticação" };
+    }
+
+    try {
+      const endpoint = `${this.baseUrl}/downloadCertificado/${cdfCodigo}`;
+      console.log(`[SINIR] Downloading CDF PDF from: ${endpoint}`);
+      
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': this.token!,
+        },
+      });
+
+      if (response.ok) {
+        const buffer = await response.arrayBuffer();
+        return { success: true, pdf: Buffer.from(buffer) };
+      } else {
+        return { success: false, message: `Erro ao baixar PDF: ${response.status}` };
+      }
     } catch (error: any) {
       return { success: false, message: error.message };
     }
