@@ -643,4 +643,300 @@ export class SinirService {
       return { success: false, message: `Erro: ${error.message}` };
     }
   }
+
+  // CDF (Certificado de Destinação Final) Methods
+
+  // List received MTRs that can be included in a CDF
+  async listarMtrsRecebidos(dataInicio?: string, dataFim?: string): Promise<{ success: boolean; mtrs: any[]; message?: string }> {
+    const authenticated = await this.authenticate();
+    if (!authenticated) {
+      return { success: false, mtrs: [], message: "Falha na autenticação" };
+    }
+
+    try {
+      const credentials = await this.getCredentials();
+      const unidade = credentials.unidade;
+      
+      // Build query params
+      const params = new URLSearchParams();
+      if (dataInicio) params.append('dataInicio', dataInicio);
+      if (dataFim) params.append('dataFim', dataFim);
+      if (unidade) params.append('unidade', unidade);
+
+      const queryString = params.toString() ? `?${params.toString()}` : '';
+      
+      // Try different endpoints for received MTRs
+      const endpoints = [
+        `${this.legacyBaseUrl}/retornaListaManifestoRecebido${queryString}`,
+        `${this.legacyBaseUrl}/listaManifestosRecebidos${queryString}`,
+        `${this.baseUrl}/manifesto/recebidos${queryString}`,
+      ];
+
+      for (const endpoint of endpoints) {
+        try {
+          console.log(`[SINIR] Trying to list received MTRs from: ${endpoint}`);
+          const response = await fetch(endpoint, {
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': this.token!,
+            },
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            const mtrs = data.objetoResposta || data.listaManifestos || data.manifestos || [];
+            if (Array.isArray(mtrs)) {
+              console.log(`[SINIR] Found ${mtrs.length} received MTRs`);
+              return { success: true, mtrs };
+            }
+          }
+        } catch (error) {
+          console.log(`[SINIR] Endpoint ${endpoint} failed:`, error);
+        }
+      }
+
+      return { success: false, mtrs: [], message: "Não foi possível buscar MTRs recebidos" };
+    } catch (error: any) {
+      return { success: false, mtrs: [], message: error.message };
+    }
+  }
+
+  // List existing CDFs
+  async listarCdfs(dataInicio?: string, dataFim?: string): Promise<{ success: boolean; cdfs: any[]; message?: string }> {
+    const authenticated = await this.authenticate();
+    if (!authenticated) {
+      return { success: false, cdfs: [], message: "Falha na autenticação" };
+    }
+
+    try {
+      const credentials = await this.getCredentials();
+      const unidade = credentials.unidade;
+
+      const params = new URLSearchParams();
+      if (dataInicio) params.append('dataInicio', dataInicio);
+      if (dataFim) params.append('dataFim', dataFim);
+      if (unidade) params.append('unidade', unidade);
+
+      const queryString = params.toString() ? `?${params.toString()}` : '';
+
+      const endpoints = [
+        `${this.legacyBaseUrl}/retornaListaCdf${queryString}`,
+        `${this.legacyBaseUrl}/listaCdfs${queryString}`,
+        `${this.baseUrl}/cdf/listar${queryString}`,
+      ];
+
+      for (const endpoint of endpoints) {
+        try {
+          console.log(`[SINIR] Trying to list CDFs from: ${endpoint}`);
+          const response = await fetch(endpoint, {
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': this.token!,
+            },
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            const cdfs = data.objetoResposta || data.listaCdfs || data.cdfs || [];
+            if (Array.isArray(cdfs)) {
+              console.log(`[SINIR] Found ${cdfs.length} CDFs`);
+              return { success: true, cdfs };
+            }
+          }
+        } catch (error) {
+          console.log(`[SINIR] Endpoint ${endpoint} failed:`, error);
+        }
+      }
+
+      return { success: false, cdfs: [], message: "Não foi possível buscar CDFs" };
+    } catch (error: any) {
+      return { success: false, cdfs: [], message: error.message };
+    }
+  }
+
+  // Save CDF draft
+  async salvarCdf(cdfData: {
+    periodoInicio: string;
+    periodoFim: string;
+    responsavelTecnico: { cpf: string; nome: string };
+    manifestos: string[];
+    observacoes?: string;
+  }): Promise<{ success: boolean; cdfNumero?: string; message: string; details?: any }> {
+    const authenticated = await this.authenticate(true); // Force JWT
+    if (!authenticated) {
+      return { success: false, message: "Falha na autenticação" };
+    }
+
+    try {
+      const credentials = await this.getCredentials();
+
+      // Build CDF payload based on SINIR documentation
+      const payload = {
+        periodoInicio: new Date(cdfData.periodoInicio).getTime(),
+        periodoFim: new Date(cdfData.periodoFim).getTime(),
+        responsavelTecnico: {
+          cpf: cdfData.responsavelTecnico.cpf.replace(/\D/g, ''),
+          nome: cdfData.responsavelTecnico.nome,
+        },
+        listaManifestos: cdfData.manifestos.map(m => ({ manNumero: m })),
+        observacoes: cdfData.observacoes || '',
+        unidade: credentials.unidade,
+      };
+
+      console.log("[SINIR] Saving CDF with payload:", JSON.stringify(payload, null, 2));
+
+      const endpoints = [
+        `${this.legacyBaseUrl}/salvarCdf`,
+        `${this.legacyBaseUrl}/cdf/salvar`,
+        `${this.baseUrl}/cdf/salvar`,
+      ];
+
+      for (const endpoint of endpoints) {
+        try {
+          console.log(`[SINIR] Trying to save CDF at: ${endpoint}`);
+          const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': this.token!,
+            },
+            body: JSON.stringify(payload),
+          });
+
+          const data = await response.json();
+          console.log(`[SINIR] Save CDF response:`, JSON.stringify(data, null, 2));
+
+          if (!data.erro && response.ok) {
+            return {
+              success: true,
+              cdfNumero: data.objetoResposta?.cdfNumero || data.objetoResposta?.numero,
+              message: data.mensagem || "CDF salvo com sucesso",
+              details: data.objetoResposta,
+            };
+          } else if (data.mensagem) {
+            return { success: false, message: data.mensagem, details: data };
+          }
+        } catch (error) {
+          console.log(`[SINIR] Endpoint ${endpoint} failed:`, error);
+        }
+      }
+
+      return { success: false, message: "Não foi possível salvar o CDF" };
+    } catch (error: any) {
+      return { success: false, message: error.message };
+    }
+  }
+
+  // Emit (finalize) CDF
+  async emitirCdf(cdfData: {
+    periodoInicio: string;
+    periodoFim: string;
+    responsavelTecnico: { cpf: string; nome: string };
+    manifestos: string[];
+    observacoes?: string;
+  }): Promise<{ success: boolean; cdfNumero?: string; message: string; details?: any }> {
+    const authenticated = await this.authenticate(true); // Force JWT
+    if (!authenticated) {
+      return { success: false, message: "Falha na autenticação" };
+    }
+
+    try {
+      const credentials = await this.getCredentials();
+
+      // Build CDF payload based on SINIR documentation
+      const payload = {
+        periodoInicio: new Date(cdfData.periodoInicio).getTime(),
+        periodoFim: new Date(cdfData.periodoFim).getTime(),
+        responsavelTecnico: {
+          cpf: cdfData.responsavelTecnico.cpf.replace(/\D/g, ''),
+          nome: cdfData.responsavelTecnico.nome,
+        },
+        listaManifestos: cdfData.manifestos.map(m => ({ manNumero: m })),
+        observacoes: cdfData.observacoes || '',
+        unidade: credentials.unidade,
+      };
+
+      console.log("[SINIR] Emitting CDF with payload:", JSON.stringify(payload, null, 2));
+
+      const endpoints = [
+        `${this.legacyBaseUrl}/emitirCdf`,
+        `${this.legacyBaseUrl}/cdf/emitir`,
+        `${this.baseUrl}/cdf/emitir`,
+      ];
+
+      for (const endpoint of endpoints) {
+        try {
+          console.log(`[SINIR] Trying to emit CDF at: ${endpoint}`);
+          const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': this.token!,
+            },
+            body: JSON.stringify(payload),
+          });
+
+          const data = await response.json();
+          console.log(`[SINIR] Emit CDF response:`, JSON.stringify(data, null, 2));
+
+          if (!data.erro && response.ok) {
+            return {
+              success: true,
+              cdfNumero: data.objetoResposta?.cdfNumero || data.objetoResposta?.numero,
+              message: data.mensagem || "CDF emitido com sucesso",
+              details: data.objetoResposta,
+            };
+          } else if (data.mensagem) {
+            return { success: false, message: data.mensagem, details: data };
+          }
+        } catch (error) {
+          console.log(`[SINIR] Endpoint ${endpoint} failed:`, error);
+        }
+      }
+
+      return { success: false, message: "Não foi possível emitir o CDF" };
+    } catch (error: any) {
+      return { success: false, message: error.message };
+    }
+  }
+
+  // Get CDF details by number
+  async getCdf(cdfNumero: string): Promise<{ success: boolean; cdf?: any; message?: string }> {
+    const authenticated = await this.authenticate();
+    if (!authenticated) {
+      return { success: false, message: "Falha na autenticação" };
+    }
+
+    try {
+      const endpoints = [
+        `${this.legacyBaseUrl}/retornaCdf/${cdfNumero}`,
+        `${this.baseUrl}/cdf/${cdfNumero}`,
+      ];
+
+      for (const endpoint of endpoints) {
+        try {
+          console.log(`[SINIR] Fetching CDF from: ${endpoint}`);
+          const response = await fetch(endpoint, {
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': this.token!,
+            },
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            if (data.objetoResposta) {
+              return { success: true, cdf: data.objetoResposta };
+            }
+          }
+        } catch (error) {
+          console.log(`[SINIR] Endpoint ${endpoint} failed:`, error);
+        }
+      }
+
+      return { success: false, message: "CDF não encontrado" };
+    } catch (error: any) {
+      return { success: false, message: error.message };
+    }
+  }
 }

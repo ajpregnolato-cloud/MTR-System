@@ -517,6 +517,136 @@ export async function registerRoutes(
     res.json(result);
   });
 
+  // === CDF (Certificado de Destinação Final) Routes ===
+  
+  // List MTRs received that can be included in a CDF
+  app.get("/api/sinir/cdf/mtrs-recebidos", async (req, res) => {
+    try {
+      const { dataInicio, dataFim } = req.query as { dataInicio?: string; dataFim?: string };
+      const sinir = new SinirService();
+      const result = await sinir.listarMtrsRecebidos(dataInicio, dataFim);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ success: false, mtrs: [], message: error.message });
+    }
+  });
+
+  // List existing CDFs
+  app.get("/api/sinir/cdf", async (req, res) => {
+    try {
+      const { dataInicio, dataFim } = req.query as { dataInicio?: string; dataFim?: string };
+      const sinir = new SinirService();
+      const result = await sinir.listarCdfs(dataInicio, dataFim);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ success: false, cdfs: [], message: error.message });
+    }
+  });
+
+  // Get CDF by number
+  app.get("/api/sinir/cdf/:numero", async (req, res) => {
+    try {
+      const sinir = new SinirService();
+      const result = await sinir.getCdf(req.params.numero);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+  });
+
+  // Save CDF draft
+  app.post("/api/sinir/cdf/salvar", async (req, res) => {
+    try {
+      const { periodoInicio, periodoFim, responsavelTecnico, manifestos, observacoes } = req.body;
+      
+      if (!periodoInicio || !periodoFim || !manifestos || manifestos.length === 0) {
+        return res.status(400).json({ 
+          success: false, 
+          message: "Período e pelo menos um manifesto são obrigatórios" 
+        });
+      }
+
+      const sinir = new SinirService();
+      const result = await sinir.salvarCdf({
+        periodoInicio,
+        periodoFim,
+        responsavelTecnico: responsavelTecnico || { cpf: "", nome: "" },
+        manifestos,
+        observacoes,
+      });
+
+      if (result.success) {
+        await storage.createLog({
+          level: 'INFO',
+          category: 'CDF',
+          message: `CDF salvo: ${result.cdfNumero || 'rascunho'}`,
+          details: result.details,
+        });
+      } else {
+        await storage.createLog({
+          level: 'ERROR',
+          category: 'CDF',
+          message: `Erro ao salvar CDF: ${result.message}`,
+          details: result.details,
+        });
+      }
+
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+  });
+
+  // Emit (finalize) CDF
+  app.post("/api/sinir/cdf/emitir", async (req, res) => {
+    try {
+      const { periodoInicio, periodoFim, responsavelTecnico, manifestos, observacoes } = req.body;
+      
+      if (!periodoInicio || !periodoFim || !manifestos || manifestos.length === 0) {
+        return res.status(400).json({ 
+          success: false, 
+          message: "Período e pelo menos um manifesto são obrigatórios" 
+        });
+      }
+
+      if (!responsavelTecnico?.cpf || !responsavelTecnico?.nome) {
+        return res.status(400).json({ 
+          success: false, 
+          message: "Responsável Técnico (CPF e Nome) é obrigatório para emissão" 
+        });
+      }
+
+      const sinir = new SinirService();
+      const result = await sinir.emitirCdf({
+        periodoInicio,
+        periodoFim,
+        responsavelTecnico,
+        manifestos,
+        observacoes,
+      });
+
+      if (result.success) {
+        await storage.createLog({
+          level: 'INFO',
+          category: 'CDF',
+          message: `CDF emitido com sucesso: ${result.cdfNumero}`,
+          details: result.details,
+        });
+      } else {
+        await storage.createLog({
+          level: 'ERROR',
+          category: 'CDF',
+          message: `Erro ao emitir CDF: ${result.message}`,
+          details: result.details,
+        });
+      }
+
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+  });
+
   // === SINIR Configuration ===
   app.get("/api/config", async (req, res) => {
     const config = await storage.getSinirConfig();
