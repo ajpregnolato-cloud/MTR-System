@@ -989,8 +989,6 @@ export class SinirService {
 
   // Emit (finalize) CDF - uses /emiteCDF endpoint from SINIR API
   async emitirCdf(cdfData: {
-    periodoInicio: string;
-    periodoFim: string;
     responsavelTecnico: { cpf: string; nome: string };
     manifestos: string[];
     observacoes?: string;
