@@ -999,48 +999,80 @@ export class SinirService {
     }
 
     try {
-      // Build CDF payload based on official SINIR Swagger documentation
-      // Endpoint: POST /emiteCDF
-      const payload = {
-        listaManifestos: cdfData.manifestos, // Array of MTR numbers
-        dataEmissao: new Date().getTime(), // Current timestamp
-        nomeResponsavel: cdfData.responsavelTecnico.nome,
-        observacoes: cdfData.observacoes || '',
-      };
-
-      console.log("[SINIR] Emitting CDF with payload:", JSON.stringify(payload, null, 2));
-
-      // Use the official endpoint from Swagger: /emiteCDF
-      const endpoint = `${this.baseUrl}/emiteCDF`;
-      console.log(`[SINIR] Calling: ${endpoint}`);
-      
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': this.token!,
+      // Build CDF payload - try multiple formats
+      const payloads = [
+        {
+          listaManifestos: cdfData.manifestos,
+          dataEmissao: new Date().getTime(),
+          nomeResponsavel: cdfData.responsavelTecnico.nome,
+          cpfResponsavel: cdfData.responsavelTecnico.cpf,
+          observacoes: cdfData.observacoes || '',
         },
-        body: JSON.stringify(payload),
-      });
+        {
+          manifestos: cdfData.manifestos,
+          dataEmissao: new Date().getTime(),
+          responsavel: {
+            nome: cdfData.responsavelTecnico.nome,
+            cpf: cdfData.responsavelTecnico.cpf,
+          },
+          observacoes: cdfData.observacoes || '',
+        },
+      ];
 
-      const data = await response.json();
-      console.log(`[SINIR] Emit CDF response:`, JSON.stringify(data, null, 2));
+      const endpoints = [
+        `${this.legacyBaseUrl}/emiteCDF`,
+        `${this.baseUrl}/emiteCDF`,
+        `${this.legacyBaseUrl}/emitirCDF`,
+        `${this.legacyBaseUrl}/cdf/emitir`,
+      ];
 
-      if (!data.erro && response.ok) {
-        return {
-          success: true,
-          cdfNumero: data.objetoResposta?.cdfNumero || data.objetoResposta?.numero,
-          cdfCodigo: data.objetoResposta?.cdfCodigo,
-          message: data.mensagem || "CDF emitido com sucesso",
-          details: data.objetoResposta,
-        };
-      } else {
-        return { 
-          success: false, 
-          message: data.mensagem || "Erro ao emitir CDF", 
-          details: data 
-        };
+      for (const endpoint of endpoints) {
+        for (const payload of payloads) {
+          try {
+            console.log(`[SINIR] Trying CDF emit: ${endpoint}`);
+            console.log(`[SINIR] Payload:`, JSON.stringify(payload, null, 2));
+            
+            const response = await fetch(endpoint, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': this.token!,
+              },
+              body: JSON.stringify(payload),
+            });
+
+            const data = await response.json();
+            console.log(`[SINIR] CDF response:`, JSON.stringify(data, null, 2));
+
+            if (!data.erro && response.ok) {
+              return {
+                success: true,
+                cdfNumero: data.objetoResposta?.cdfNumero || data.objetoResposta?.numero,
+                cdfCodigo: data.objetoResposta?.cdfCodigo,
+                message: data.mensagem || "CDF emitido com sucesso",
+                details: data.objetoResposta,
+              };
+            }
+            
+            // If we get a specific error message (not generic), return it
+            if (data.mensagem && !data.mensagem.includes("Não foi possível emitir")) {
+              return { 
+                success: false, 
+                message: data.mensagem, 
+                details: data 
+              };
+            }
+          } catch (err) {
+            console.log(`[SINIR] Endpoint ${endpoint} failed:`, err);
+          }
+        }
       }
+
+      return { 
+        success: false, 
+        message: "Não foi possível emitir o CDF. Verifique se o MTR está apto para certificação.", 
+        details: null 
+      };
     } catch (error: any) {
       console.log(`[SINIR] Emit CDF error:`, error);
       return { success: false, message: error.message };
