@@ -13,6 +13,8 @@ import {
   AlertCircle,
   Search,
   Loader2,
+  Plus,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -64,6 +66,7 @@ export default function CDF() {
   const [observacoes, setObservacoes] = useState("");
   const [selectedMtrs, setSelectedMtrs] = useState<string[]>([]);
   const [searchFilter, setSearchFilter] = useState("");
+  const [mtrManual, setMtrManual] = useState("");
 
   const { data: mtrsRecebidos, isLoading: loadingMtrs, refetch: refetchMtrs } = useQuery<{ success: boolean; mtrs: MtrRecebido[]; message?: string }>({
     queryKey: ["/api/sinir/cdf/mtrs-recebidos", periodoInicio, periodoFim],
@@ -131,6 +134,25 @@ export default function CDF() {
       return;
     }
     refetchMtrs();
+  };
+
+  const handleAdicionarMtrManual = () => {
+    const numero = mtrManual.trim();
+    if (!numero) {
+      toast({ title: "Atenção", description: "Digite o número do MTR", variant: "destructive" });
+      return;
+    }
+    if (selectedMtrs.includes(numero)) {
+      toast({ title: "Atenção", description: "MTR já adicionado", variant: "destructive" });
+      return;
+    }
+    setSelectedMtrs((prev) => [...prev, numero]);
+    setMtrManual("");
+    toast({ title: "MTR adicionado", description: `MTR ${numero} adicionado à lista` });
+  };
+
+  const handleRemoverMtr = (numero: string) => {
+    setSelectedMtrs((prev) => prev.filter((n) => n !== numero));
   };
 
   const handleSelectMtr = (numero: string, checked: boolean) => {
@@ -351,6 +373,49 @@ export default function CDF() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
+              <Label htmlFor="mtr-manual">Adicionar MTR Manualmente</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="mtr-manual"
+                  placeholder="Numero do MTR (ex: 501028878271)"
+                  value={mtrManual}
+                  onChange={(e) => setMtrManual(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleAdicionarMtrManual()}
+                  data-testid="input-mtr-manual"
+                />
+                <Button
+                  size="icon"
+                  onClick={handleAdicionarMtrManual}
+                  data-testid="button-adicionar-mtr"
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            {selectedMtrs.length > 0 && (
+              <div className="space-y-2">
+                <Label>MTRs Selecionados ({selectedMtrs.length})</Label>
+                <div className="border rounded-md p-2 max-h-32 overflow-auto space-y-1">
+                  {selectedMtrs.map((mtr) => (
+                    <div key={mtr} className="flex items-center justify-between gap-2 bg-muted/50 rounded px-2 py-1">
+                      <span className="font-mono text-xs">{mtr}</span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={() => handleRemoverMtr(mtr)}
+                        data-testid={`button-remover-mtr-${mtr}`}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="border-t pt-4 space-y-2">
               <Label htmlFor="responsavel-cpf">CPF do Responsável Técnico</Label>
               <Input
                 id="responsavel-cpf"
