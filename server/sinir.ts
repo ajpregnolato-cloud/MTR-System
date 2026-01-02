@@ -285,12 +285,14 @@ export class SinirService {
       listaManifestoResiduos: mtr.items.map(item => {
         const qty = Number(item.quantity) || 0;
         const qtyReceived = item.quantityReceived ? Number(item.quantityReceived) : qty;
+        // Use original SINIR codes if available, otherwise fall back to mapping
+        const itemAny = item as any;
         return {
           resCodigoIbama: this.extractIbamaCode(item.code),
           marQuantidade: qty,
           marQuantidadeRecebida: qtyReceived,
-          uniCodigo: this.getUnitCode(item.unit),
-          traCodigo: this.getTreatmentCode(item.treatment),
+          uniCodigo: itemAny.uniCodigo || this.getUnitCode(item.unit),
+          traCodigo: itemAny.traCodigo || this.getTreatmentCode(item.treatment),
           marJustificativa: mtr.justificativa || undefined,
         };
       }),

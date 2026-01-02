@@ -34,6 +34,13 @@ export interface SessionMtrItem {
   unit?: string | null;
   treatment?: string | null;
   class?: string | null;
+  // Original SINIR/IEMA codes for API calls
+  uniCodigo?: number | null;
+  traCodigo?: number | null;
+  tieCodigo?: number | null;
+  claCodigo?: number | null;
+  tiaCodigo?: number | null;
+  resCodigo?: number | null;
 }
 
 export interface SendResult {
@@ -224,6 +231,12 @@ class SessionStorage {
         unit: item.unit || null,
         treatment: item.treatment || null,
         class: item.class || null,
+        uniCodigo: item.uniCodigo || null,
+        traCodigo: item.traCodigo || null,
+        tieCodigo: item.tieCodigo || null,
+        claCodigo: item.claCodigo || null,
+        tiaCodigo: item.tiaCodigo || null,
+        resCodigo: item.resCodigo || null,
       })),
     };
   }
