@@ -4,14 +4,8 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
   Award,
-  Calendar,
   FileText,
   Send,
-  Save,
-  RefreshCw,
-  CheckCircle,
-  AlertCircle,
-  Search,
   Loader2,
   Plus,
   X,
@@ -22,19 +16,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-
-interface MtrRecebido {
-  manNumero: string;
-  gerNome?: string;
-  traQuantidade?: number;
-  resCodigoIbama?: string;
-  resNome?: string;
-  dataRecebimento?: number;
-}
 
 interface CdfData {
   cdfNumero?: string;
@@ -59,32 +43,13 @@ const isValidCpf = (cpf: string): boolean => {
 
 export default function CDF() {
   const { toast } = useToast();
-  const [periodoInicio, setPeriodoInicio] = useState("");
-  const [periodoFim, setPeriodoFim] = useState("");
   const [responsavelCpf, setResponsavelCpf] = useState("");
   const [responsavelNome, setResponsavelNome] = useState("");
   const [observacoes, setObservacoes] = useState("");
   const [selectedMtrs, setSelectedMtrs] = useState<string[]>([]);
-  const [searchFilter, setSearchFilter] = useState("");
   const [mtrManual, setMtrManual] = useState("");
-  const [buscarSemCdf, setBuscarSemCdf] = useState(true);
 
-  const { data: mtrsRecebidos, isLoading: loadingMtrs, refetch: refetchMtrs } = useQuery<{ success: boolean; mtrs: MtrRecebido[]; message?: string }>({
-    queryKey: ["/api/sinir/cdf/mtrs-recebidos", periodoInicio, periodoFim, buscarSemCdf],
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      if (periodoInicio) params.append('dataInicio', periodoInicio);
-      if (periodoFim) params.append('dataFim', periodoFim);
-      const endpoint = buscarSemCdf ? '/api/sinir/cdf/mtrs-sem-cdf' : '/api/sinir/cdf/mtrs-recebidos';
-      const url = `${endpoint}${params.toString() ? '?' + params.toString() : ''}`;
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
-      return res.json();
-    },
-    enabled: false,
-  });
-
-  const { data: cdfsExistentes, isLoading: loadingCdfs, refetch: refetchCdfs } = useQuery<{ success: boolean; cdfs: CdfData[]; message?: string }>({
+  const { data: cdfsExistentes, isLoading: loadingCdfs } = useQuery<{ success: boolean; cdfs: CdfData[]; message?: string }>({
     queryKey: ["/api/sinir/cdf"],
     queryFn: async () => {
       const res = await fetch("/api/sinir/cdf");
@@ -93,26 +58,8 @@ export default function CDF() {
     },
   });
 
-  const salvarMutation = useMutation({
-    mutationFn: async (data: { periodoInicio: string; periodoFim: string; responsavelTecnico: { cpf: string; nome: string }; manifestos: string[]; observacoes?: string }) => {
-      const res = await apiRequest("POST", "/api/sinir/cdf/salvar", data);
-      return res.json();
-    },
-    onSuccess: (data) => {
-      if (data.success) {
-        toast({ title: "CDF salvo", description: data.message });
-        queryClient.invalidateQueries({ queryKey: ["/api/sinir/cdf"] });
-      } else {
-        toast({ title: "Erro ao salvar", description: data.message, variant: "destructive" });
-      }
-    },
-    onError: (error: any) => {
-      toast({ title: "Erro", description: error.message, variant: "destructive" });
-    },
-  });
-
   const emitirMutation = useMutation({
-    mutationFn: async (data: { periodoInicio: string; periodoFim: string; responsavelTecnico: { cpf: string; nome: string }; manifestos: string[]; observacoes?: string }) => {
+    mutationFn: async (data: { responsavelTecnico: { cpf: string; nome: string }; manifestos: string[]; observacoes?: string }) => {
       const res = await apiRequest("POST", "/api/sinir/cdf/emitir", data);
       return res.json();
     },
@@ -129,14 +76,6 @@ export default function CDF() {
       toast({ title: "Erro", description: error.message, variant: "destructive" });
     },
   });
-
-  const handleBuscarMtrs = () => {
-    if (!periodoInicio || !periodoFim) {
-      toast({ title: "Atenção", description: "Informe o período de início e fim", variant: "destructive" });
-      return;
-    }
-    refetchMtrs();
-  };
 
   const handleAdicionarMtrManual = () => {
     const numero = mtrManual.trim();
@@ -157,67 +96,26 @@ export default function CDF() {
     setSelectedMtrs((prev) => prev.filter((n) => n !== numero));
   };
 
-  const handleSelectMtr = (numero: string, checked: boolean) => {
-    if (checked) {
-      setSelectedMtrs((prev) => [...prev, numero]);
-    } else {
-      setSelectedMtrs((prev) => prev.filter((n) => n !== numero));
-    }
-  };
-
-  const handleSelectAll = (checked: boolean) => {
-    if (checked && mtrsRecebidos?.mtrs) {
-      const filtered = filteredMtrs.map((m) => m.manNumero);
-      setSelectedMtrs(filtered);
-    } else {
-      setSelectedMtrs([]);
-    }
-  };
-
-  const handleSalvar = () => {
-    if (selectedMtrs.length === 0) {
-      toast({ title: "Atenção", description: "Selecione pelo menos um MTR", variant: "destructive" });
-      return;
-    }
-
-    salvarMutation.mutate({
-      periodoInicio,
-      periodoFim,
-      responsavelTecnico: { cpf: responsavelCpf, nome: responsavelNome },
-      manifestos: selectedMtrs,
-      observacoes,
-    });
-  };
-
   const handleEmitir = () => {
     if (selectedMtrs.length === 0) {
-      toast({ title: "Atenção", description: "Selecione pelo menos um MTR", variant: "destructive" });
+      toast({ title: "Atenção", description: "Adicione pelo menos um MTR", variant: "destructive" });
       return;
     }
     if (!responsavelCpf || !responsavelNome) {
       toast({ title: "Atenção", description: "Informe o CPF e Nome do Responsável Técnico", variant: "destructive" });
       return;
     }
+    if (!isValidCpf(responsavelCpf)) {
+      toast({ title: "Atenção", description: "CPF inválido", variant: "destructive" });
+      return;
+    }
 
     emitirMutation.mutate({
-      periodoInicio,
-      periodoFim,
-      responsavelTecnico: { cpf: responsavelCpf, nome: responsavelNome },
+      responsavelTecnico: { cpf: responsavelCpf.replace(/\D/g, ''), nome: responsavelNome },
       manifestos: selectedMtrs,
       observacoes,
     });
   };
-
-  const filteredMtrs = (mtrsRecebidos?.mtrs || []).filter((mtr) => {
-    if (!searchFilter) return true;
-    const search = searchFilter.toLowerCase();
-    return (
-      mtr.manNumero?.toLowerCase().includes(search) ||
-      mtr.gerNome?.toLowerCase().includes(search) ||
-      mtr.resCodigoIbama?.toLowerCase().includes(search) ||
-      mtr.resNome?.toLowerCase().includes(search)
-    );
-  });
 
   const formatTimestamp = (ts: number | undefined) => {
     if (!ts) return "-";
@@ -246,217 +144,110 @@ export default function CDF() {
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              Período e Filtros
+              <FileText className="h-5 w-5" />
+              MTRs para o CDF
             </CardTitle>
             <CardDescription>
-              Defina o período e busque os MTRs recebidos para incluir no CDF
+              Adicione os números dos MTRs recebidos que deseja incluir no certificado
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="periodo-inicio">Data Início</Label>
-                <Input
-                  id="periodo-inicio"
-                  type="date"
-                  value={periodoInicio}
-                  onChange={(e) => setPeriodoInicio(e.target.value)}
-                  data-testid="input-periodo-inicio"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="periodo-fim">Data Fim (máx. 30 dias)</Label>
-                <Input
-                  id="periodo-fim"
-                  type="date"
-                  value={periodoFim}
-                  onChange={(e) => setPeriodoFim(e.target.value)}
-                  data-testid="input-periodo-fim"
-                />
-              </div>
-              <div className="flex items-end">
-                <div className="flex items-center space-x-2 h-9">
-                  <Checkbox
-                    id="sem-cdf"
-                    checked={buscarSemCdf}
-                    onCheckedChange={(checked) => setBuscarSemCdf(!!checked)}
-                    data-testid="checkbox-sem-cdf"
-                  />
-                  <Label htmlFor="sem-cdf" className="text-sm cursor-pointer">
-                    Apenas sem CDF
-                  </Label>
-                </div>
-              </div>
-              <div className="flex items-end">
-                <Button
-                  onClick={handleBuscarMtrs}
-                  disabled={loadingMtrs || !periodoInicio || !periodoFim}
-                  className="w-full"
-                  data-testid="button-buscar-mtrs"
-                >
-                  {loadingMtrs ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Search className="mr-2 h-4 w-4" />
-                  )}
-                  Buscar MTRs
-                </Button>
-              </div>
+            <div className="flex items-center gap-2">
+              <Input
+                placeholder="Digite o número do MTR (ex: 501028878271)"
+                value={mtrManual}
+                onChange={(e) => setMtrManual(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleAdicionarMtrManual()}
+                className="flex-1"
+                data-testid="input-mtr-manual"
+              />
+              <Button onClick={handleAdicionarMtrManual} data-testid="button-adicionar-mtr">
+                <Plus className="mr-2 h-4 w-4" />
+                Adicionar
+              </Button>
             </div>
 
-            {mtrsRecebidos && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between gap-4">
-                  <Input
-                    placeholder="Filtrar por numero, gerador, residuo..."
-                    value={searchFilter}
-                    onChange={(e) => setSearchFilter(e.target.value)}
-                    className="max-w-sm"
-                    data-testid="input-filtro-mtrs"
-                  />
-                  <Badge variant="outline" className="px-3 py-1">
-                    {selectedMtrs.length} de {filteredMtrs.length} selecionados
-                  </Badge>
-                </div>
-
-                <div className="border rounded-lg max-h-[400px] overflow-auto">
-                  <Table>
-                    <TableHeader className="sticky top-0 bg-background z-10">
-                      <TableRow>
-                        <TableHead className="w-12">
-                          <Checkbox
-                            checked={selectedMtrs.length === filteredMtrs.length && filteredMtrs.length > 0}
-                            onCheckedChange={handleSelectAll}
-                            data-testid="checkbox-select-all"
-                          />
-                        </TableHead>
-                        <TableHead>Numero MTR</TableHead>
-                        <TableHead>Gerador</TableHead>
-                        <TableHead>Residuo</TableHead>
-                        <TableHead className="text-right">Qtd.</TableHead>
-                        <TableHead>Recebido</TableHead>
+            {selectedMtrs.length > 0 && (
+              <div className="border rounded-lg">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Número MTR</TableHead>
+                      <TableHead className="w-12"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {selectedMtrs.map((mtr) => (
+                      <TableRow key={mtr} data-testid={`row-mtr-${mtr}`}>
+                        <TableCell className="font-mono">{mtr}</TableCell>
+                        <TableCell>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => handleRemoverMtr(mtr)}
+                            data-testid={`button-remover-${mtr}`}
+                          >
+                            <X className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </TableCell>
                       </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredMtrs.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                            {mtrsRecebidos?.message || "Nenhum MTR encontrado no período"}
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        filteredMtrs.map((mtr) => (
-                          <TableRow key={mtr.manNumero} data-testid={`row-mtr-${mtr.manNumero}`}>
-                            <TableCell>
-                              <Checkbox
-                                checked={selectedMtrs.includes(mtr.manNumero)}
-                                onCheckedChange={(checked) => handleSelectMtr(mtr.manNumero, !!checked)}
-                                data-testid={`checkbox-mtr-${mtr.manNumero}`}
-                              />
-                            </TableCell>
-                            <TableCell className="font-mono text-xs">{mtr.manNumero}</TableCell>
-                            <TableCell className="max-w-[150px] truncate" title={mtr.gerNome}>
-                              {mtr.gerNome || "-"}
-                            </TableCell>
-                            <TableCell className="max-w-[150px]">
-                              <div className="truncate" title={mtr.resNome}>
-                                <span className="font-mono text-xs">{mtr.resCodigoIbama}</span>
-                                {mtr.resNome && <span className="ml-1 text-muted-foreground">- {mtr.resNome}</span>}
-                              </div>
-                            </TableCell>
-                            <TableCell className="text-right font-mono">{mtr.traQuantidade || "-"}</TableCell>
-                            <TableCell>{formatTimestamp(mtr.dataRecebimento)}</TableCell>
-                          </TableRow>
-                        ))
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
+                    ))}
+                  </TableBody>
+                </Table>
               </div>
             )}
+
+            {selectedMtrs.length === 0 && (
+              <div className="text-center py-8 text-muted-foreground border rounded-lg">
+                Nenhum MTR adicionado. Digite o número acima e clique em Adicionar.
+              </div>
+            )}
+
+            <Badge variant="outline" className="px-3 py-1">
+              {selectedMtrs.length} MTR(s) selecionado(s)
+            </Badge>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5" />
-              Dados do CDF
+              <Send className="h-5 w-5" />
+              Emitir CDF
             </CardTitle>
-            <CardDescription>Preencha os dados do responsável técnico</CardDescription>
+            <CardDescription>
+              Preencha os dados do responsável técnico
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="mtr-manual">Adicionar MTR Manualmente</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="mtr-manual"
-                  placeholder="Numero do MTR (ex: 501028878271)"
-                  value={mtrManual}
-                  onChange={(e) => setMtrManual(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleAdicionarMtrManual()}
-                  data-testid="input-mtr-manual"
-                />
-                <Button
-                  size="icon"
-                  onClick={handleAdicionarMtrManual}
-                  data-testid="button-adicionar-mtr"
-                >
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-
-            {selectedMtrs.length > 0 && (
-              <div className="space-y-2">
-                <Label>MTRs Selecionados ({selectedMtrs.length})</Label>
-                <div className="border rounded-md p-2 max-h-32 overflow-auto space-y-1">
-                  {selectedMtrs.map((mtr) => (
-                    <div key={mtr} className="flex items-center justify-between gap-2 bg-muted/50 rounded px-2 py-1">
-                      <span className="font-mono text-xs">{mtr}</span>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        onClick={() => handleRemoverMtr(mtr)}
-                        data-testid={`button-remover-mtr-${mtr}`}
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="border-t pt-4 space-y-2">
-              <Label htmlFor="responsavel-cpf">CPF do Responsável Técnico</Label>
+              <Label htmlFor="resp-cpf">CPF do Responsável</Label>
               <Input
-                id="responsavel-cpf"
+                id="resp-cpf"
                 placeholder="000.000.000-00"
-                value={responsavelCpf}
+                value={formatCpf(responsavelCpf)}
                 onChange={(e) => setResponsavelCpf(e.target.value)}
-                data-testid="input-responsavel-cpf"
+                data-testid="input-cpf-responsavel"
               />
             </div>
-
             <div className="space-y-2">
-              <Label htmlFor="responsavel-nome">Nome do Responsável Técnico</Label>
+              <Label htmlFor="resp-nome">Nome do Responsável</Label>
               <Input
-                id="responsavel-nome"
+                id="resp-nome"
                 placeholder="Nome completo"
                 value={responsavelNome}
                 onChange={(e) => setResponsavelNome(e.target.value)}
-                data-testid="input-responsavel-nome"
+                data-testid="input-nome-responsavel"
               />
+              <p className="text-xs text-muted-foreground">
+                O nome deve ser exatamente igual ao cadastrado no SINIR
+              </p>
             </div>
-
             <div className="space-y-2">
               <Label htmlFor="observacoes">Observações (opcional)</Label>
               <Textarea
                 id="observacoes"
-                placeholder="Informações adicionais..."
+                placeholder="Observações adicionais..."
                 value={observacoes}
                 onChange={(e) => setObservacoes(e.target.value)}
                 rows={3}
@@ -464,50 +255,28 @@ export default function CDF() {
               />
             </div>
 
-            <div className="pt-4 space-y-3">
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={handleSalvar}
-                disabled={salvarMutation.isPending || selectedMtrs.length === 0}
-                data-testid="button-salvar-cdf"
-              >
-                {salvarMutation.isPending ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Save className="mr-2 h-4 w-4" />
-                )}
-                Salvar Rascunho
-              </Button>
-
-              <Button
-                className="w-full"
-                onClick={handleEmitir}
-                disabled={emitirMutation.isPending || selectedMtrs.length === 0 || !responsavelCpf || !responsavelNome}
-                data-testid="button-emitir-cdf"
-              >
-                {emitirMutation.isPending ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Send className="mr-2 h-4 w-4" />
-                )}
-                Emitir CDF
-              </Button>
-            </div>
+            <Button
+              className="w-full"
+              onClick={handleEmitir}
+              disabled={emitirMutation.isPending || selectedMtrs.length === 0}
+              data-testid="button-emitir-cdf"
+            >
+              {emitirMutation.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Send className="mr-2 h-4 w-4" />
+              )}
+              Emitir CDF no SINIR
+            </Button>
           </CardContent>
         </Card>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center justify-between gap-2">
-            <span className="flex items-center gap-2">
-              <Award className="h-5 w-5" />
-              CDFs Emitidos
-            </span>
-            <Button variant="ghost" size="icon" onClick={() => refetchCdfs()} data-testid="button-refresh-cdfs">
-              <RefreshCw className={`h-4 w-4 ${loadingCdfs ? "animate-spin" : ""}`} />
-            </Button>
+          <CardTitle className="flex items-center gap-2">
+            <Award className="h-5 w-5" />
+            CDFs Emitidos
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -515,45 +284,36 @@ export default function CDF() {
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
-          ) : (cdfsExistentes?.cdfs?.length || 0) === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <Award className="h-12 w-12 mx-auto mb-3 opacity-30" />
-              <p>Nenhum CDF encontrado</p>
-              {cdfsExistentes?.message && <p className="text-sm mt-1">{cdfsExistentes.message}</p>}
-            </div>
-          ) : (
-            <div className="border rounded-lg">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Numero</TableHead>
-                    <TableHead>Período</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Manifestos</TableHead>
+          ) : cdfsExistentes?.cdfs && cdfsExistentes.cdfs.length > 0 ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Número CDF</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Período</TableHead>
+                  <TableHead>MTRs</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {cdfsExistentes.cdfs.map((cdf, idx) => (
+                  <TableRow key={cdf.cdfNumero || idx} data-testid={`row-cdf-${cdf.cdfNumero || idx}`}>
+                    <TableCell className="font-mono">{cdf.cdfNumero || "-"}</TableCell>
+                    <TableCell>
+                      <Badge variant={cdf.status === 'EMITIDO' ? 'default' : 'secondary'}>
+                        {cdf.status || "Pendente"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {formatTimestamp(cdf.periodoInicio)} - {formatTimestamp(cdf.periodoFim)}
+                    </TableCell>
+                    <TableCell>{cdf.manifestos?.length || 0} MTR(s)</TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {cdfsExistentes?.cdfs?.map((cdf) => (
-                    <TableRow key={cdf.cdfNumero} data-testid={`row-cdf-${cdf.cdfNumero}`}>
-                      <TableCell className="font-mono">{cdf.cdfNumero}</TableCell>
-                      <TableCell>
-                        {formatTimestamp(cdf.periodoInicio)} - {formatTimestamp(cdf.periodoFim)}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={cdf.status === "EMITIDO" ? "default" : "secondary"}>
-                          {cdf.status === "EMITIDO" ? (
-                            <CheckCircle className="mr-1 h-3 w-3" />
-                          ) : (
-                            <AlertCircle className="mr-1 h-3 w-3" />
-                          )}
-                          {cdf.status || "Rascunho"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{cdf.manifestos?.length || 0} MTRs</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                ))}
+              </TableBody>
+            </Table>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              {cdfsExistentes?.message || "Nenhum CDF encontrado"}
             </div>
           )}
         </CardContent>
