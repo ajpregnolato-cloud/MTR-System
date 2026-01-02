@@ -255,6 +255,13 @@ export class SinirService {
     return match ? match[1] : code.replace(/\D/g, '').substring(0, 6);
   }
 
+  // Normalize name by removing accents (SINIR API may not handle accents well)
+  private normalizeNameForSinir(name: string | null | undefined): string | undefined {
+    if (!name) return undefined;
+    // Remove accents using normalize + replace
+    return name.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  }
+
   // Receive MTR in batch - Endpoint: /receberManifestoLote
   // Based on SINIR Swagger documentation
   async receiveMtrBatch(mtrs: MtrWithItems[]): Promise<{ success: boolean; results: any[]; details?: any }> {
@@ -275,13 +282,14 @@ export class SinirService {
     const defaultResponsavel = dbConfig.length > 0 ? dbConfig[0].responsavelNome : null;
 
     // Build payload as array according to SINIR docs
+    // Normalize names to remove accents (SINIR API encoding issues)
     const payload: ManifestoRecebimento[] = mtrs.map(mtr => ({
       manNumero: mtr.mtrCode,
       dataRecebimento: new Date().getTime(),
-      nomeMotorista: mtr.motorista || undefined,
+      nomeMotorista: this.normalizeNameForSinir(mtr.motorista),
       placaVeiculo: mtr.placa || undefined,
-      nomeResponsavelRecebimento: mtr.responsavelRecebimento || defaultResponsavel || "Responsável Técnico",
-      observacoes: mtr.observations || `Recebido via integração - ${new Date().toLocaleDateString('pt-BR')}`,
+      nomeResponsavelRecebimento: this.normalizeNameForSinir(mtr.responsavelRecebimento || defaultResponsavel) || "Responsavel Tecnico",
+      observacoes: mtr.observations || `Recebido via integracao - ${new Date().toLocaleDateString('pt-BR')}`,
       listaManifestoResiduos: mtr.items.map(item => {
         const qty = Number(item.quantity) || 0;
         const qtyReceived = item.quantityReceived ? Number(item.quantityReceived) : qty;
