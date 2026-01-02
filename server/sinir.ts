@@ -646,6 +646,166 @@ export class SinirService {
 
   // CDF (Certificado de Destinação Final) Methods
 
+  // List open MTRs (pending receipt) by period - max 30 days
+  async listarMtrsAbertos(dataInicio: string, dataFim: string): Promise<{ success: boolean; mtrs: any[]; message?: string }> {
+    const authenticated = await this.authenticate();
+    if (!authenticated) {
+      return { success: false, mtrs: [], message: "Falha na autenticação" };
+    }
+
+    try {
+      // Validate max 30 days period
+      const inicio = new Date(dataInicio);
+      const fim = new Date(dataFim);
+      
+      if (isNaN(inicio.getTime()) || isNaN(fim.getTime())) {
+        return { success: false, mtrs: [], message: "Datas inválidas" };
+      }
+      
+      if (inicio > fim) {
+        return { success: false, mtrs: [], message: "Data início deve ser anterior à data fim" };
+      }
+      
+      const diffDays = Math.ceil((fim.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24));
+      
+      if (diffDays > 30) {
+        return { success: false, mtrs: [], message: "Período máximo de 30 dias excedido" };
+      }
+
+      const credentials = await this.getCredentials();
+      const unidade = credentials.unidade;
+      
+      // Build query params - use original date strings as SINIR expects
+      const params = new URLSearchParams();
+      params.append('dataInicio', dataInicio);
+      params.append('dataFim', dataFim);
+      if (unidade) params.append('unidade', unidade);
+      params.append('status', 'ABERTO');
+
+      const queryString = `?${params.toString()}`;
+      
+      // Try different endpoints for open/pending MTRs
+      const endpoints = [
+        `${this.legacyBaseUrl}/retornaListaManifestoPendente${queryString}`,
+        `${this.legacyBaseUrl}/listaManifestosPendentes${queryString}`,
+        `${this.baseUrl}/manifesto/pendentes${queryString}`,
+        `${this.legacyBaseUrl}/retornaListaManifesto${queryString}`,
+      ];
+
+      for (const endpoint of endpoints) {
+        try {
+          console.log(`[SINIR] Trying to list open MTRs from: ${endpoint}`);
+          const response = await fetch(endpoint, {
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': this.token!,
+            },
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            console.log(`[SINIR] Open MTRs response:`, JSON.stringify(data, null, 2).substring(0, 500));
+            const mtrs = data.objetoResposta || data.listaManifestos || data.manifestos || [];
+            if (Array.isArray(mtrs)) {
+              // Filter only open/pending MTRs (status not received)
+              const openMtrs = mtrs.filter((m: any) => 
+                !m.dataRecebimento && 
+                (m.manStatus !== 'RECEBIDO' && m.status !== 'RECEBIDO')
+              );
+              console.log(`[SINIR] Found ${openMtrs.length} open MTRs (filtered from ${mtrs.length})`);
+              return { success: true, mtrs: openMtrs };
+            }
+          }
+        } catch (error) {
+          console.log(`[SINIR] Endpoint ${endpoint} failed:`, error);
+        }
+      }
+
+      return { success: false, mtrs: [], message: "Não foi possível buscar MTRs abertos. API pode não suportar esta consulta." };
+    } catch (error: any) {
+      return { success: false, mtrs: [], message: error.message };
+    }
+  }
+
+  // List received MTRs without CDF by period
+  async listarMtrsRecebidosSemCdf(dataInicio: string, dataFim: string): Promise<{ success: boolean; mtrs: any[]; message?: string }> {
+    const authenticated = await this.authenticate();
+    if (!authenticated) {
+      return { success: false, mtrs: [], message: "Falha na autenticação" };
+    }
+
+    try {
+      // Validate max 30 days period
+      const inicio = new Date(dataInicio);
+      const fim = new Date(dataFim);
+      
+      if (isNaN(inicio.getTime()) || isNaN(fim.getTime())) {
+        return { success: false, mtrs: [], message: "Datas inválidas" };
+      }
+      
+      if (inicio > fim) {
+        return { success: false, mtrs: [], message: "Data início deve ser anterior à data fim" };
+      }
+      
+      const diffDays = Math.ceil((fim.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24));
+      
+      if (diffDays > 30) {
+        return { success: false, mtrs: [], message: "Período máximo de 30 dias excedido" };
+      }
+
+      const credentials = await this.getCredentials();
+      const unidade = credentials.unidade;
+      
+      // Build query params - use original date strings as SINIR expects
+      const params = new URLSearchParams();
+      params.append('dataInicio', dataInicio);
+      params.append('dataFim', dataFim);
+      if (unidade) params.append('unidade', unidade);
+      params.append('semCdf', 'true');
+
+      const queryString = `?${params.toString()}`;
+      
+      const endpoints = [
+        `${this.legacyBaseUrl}/retornaListaManifestoRecebidoSemCdf${queryString}`,
+        `${this.legacyBaseUrl}/listaManifestosRecebidosSemCdf${queryString}`,
+        `${this.baseUrl}/manifesto/recebidos-sem-cdf${queryString}`,
+        `${this.legacyBaseUrl}/retornaListaManifestoRecebido${queryString}`,
+      ];
+
+      for (const endpoint of endpoints) {
+        try {
+          console.log(`[SINIR] Trying to list received MTRs without CDF from: ${endpoint}`);
+          const response = await fetch(endpoint, {
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': this.token!,
+            },
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            console.log(`[SINIR] Received MTRs without CDF response:`, JSON.stringify(data, null, 2).substring(0, 500));
+            const mtrs = data.objetoResposta || data.listaManifestos || data.manifestos || [];
+            if (Array.isArray(mtrs)) {
+              // Filter MTRs that don't have CDF
+              const mtrsWithoutCdf = mtrs.filter((m: any) => 
+                !m.cdfNumero && !m.cdfCodigo && m.cdfStatus !== 'EMITIDO'
+              );
+              console.log(`[SINIR] Found ${mtrsWithoutCdf.length} received MTRs without CDF`);
+              return { success: true, mtrs: mtrsWithoutCdf };
+            }
+          }
+        } catch (error) {
+          console.log(`[SINIR] Endpoint ${endpoint} failed:`, error);
+        }
+      }
+
+      return { success: false, mtrs: [], message: "Não foi possível buscar MTRs sem CDF. API pode não suportar esta consulta." };
+    } catch (error: any) {
+      return { success: false, mtrs: [], message: error.message };
+    }
+  }
+
   // List received MTRs that can be included in a CDF
   async listarMtrsRecebidos(dataInicio?: string, dataFim?: string): Promise<{ success: boolean; mtrs: any[]; message?: string }> {
     const authenticated = await this.authenticate();

@@ -519,6 +519,36 @@ export async function registerRoutes(
 
   // === CDF (Certificado de Destinação Final) Routes ===
   
+  // List open MTRs (pending receipt) by period - max 30 days
+  app.get("/api/sinir/mtrs-abertos", async (req, res) => {
+    try {
+      const { dataInicio, dataFim } = req.query as { dataInicio?: string; dataFim?: string };
+      if (!dataInicio || !dataFim) {
+        return res.status(400).json({ success: false, mtrs: [], message: "Data início e fim são obrigatórias" });
+      }
+      const sinir = new SinirService();
+      const result = await sinir.listarMtrsAbertos(dataInicio, dataFim);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ success: false, mtrs: [], message: error.message });
+    }
+  });
+
+  // List received MTRs without CDF by period - max 30 days
+  app.get("/api/sinir/cdf/mtrs-sem-cdf", async (req, res) => {
+    try {
+      const { dataInicio, dataFim } = req.query as { dataInicio?: string; dataFim?: string };
+      if (!dataInicio || !dataFim) {
+        return res.status(400).json({ success: false, mtrs: [], message: "Data início e fim são obrigatórias" });
+      }
+      const sinir = new SinirService();
+      const result = await sinir.listarMtrsRecebidosSemCdf(dataInicio, dataFim);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ success: false, mtrs: [], message: error.message });
+    }
+  });
+
   // List MTRs received that can be included in a CDF
   app.get("/api/sinir/cdf/mtrs-recebidos", async (req, res) => {
     try {

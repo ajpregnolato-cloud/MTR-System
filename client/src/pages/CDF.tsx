@@ -67,14 +67,16 @@ export default function CDF() {
   const [selectedMtrs, setSelectedMtrs] = useState<string[]>([]);
   const [searchFilter, setSearchFilter] = useState("");
   const [mtrManual, setMtrManual] = useState("");
+  const [buscarSemCdf, setBuscarSemCdf] = useState(true);
 
   const { data: mtrsRecebidos, isLoading: loadingMtrs, refetch: refetchMtrs } = useQuery<{ success: boolean; mtrs: MtrRecebido[]; message?: string }>({
-    queryKey: ["/api/sinir/cdf/mtrs-recebidos", periodoInicio, periodoFim],
+    queryKey: ["/api/sinir/cdf/mtrs-recebidos", periodoInicio, periodoFim, buscarSemCdf],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (periodoInicio) params.append('dataInicio', periodoInicio);
       if (periodoFim) params.append('dataFim', periodoFim);
-      const url = `/api/sinir/cdf/mtrs-recebidos${params.toString() ? '?' + params.toString() : ''}`;
+      const endpoint = buscarSemCdf ? '/api/sinir/cdf/mtrs-sem-cdf' : '/api/sinir/cdf/mtrs-recebidos';
+      const url = `${endpoint}${params.toString() ? '?' + params.toString() : ''}`;
       const res = await fetch(url);
       if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
       return res.json();
@@ -252,7 +254,7 @@ export default function CDF() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="periodo-inicio">Data Início</Label>
                 <Input
@@ -264,7 +266,7 @@ export default function CDF() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="periodo-fim">Data Fim</Label>
+                <Label htmlFor="periodo-fim">Data Fim (máx. 30 dias)</Label>
                 <Input
                   id="periodo-fim"
                   type="date"
@@ -272,6 +274,19 @@ export default function CDF() {
                   onChange={(e) => setPeriodoFim(e.target.value)}
                   data-testid="input-periodo-fim"
                 />
+              </div>
+              <div className="flex items-end">
+                <div className="flex items-center space-x-2 h-9">
+                  <Checkbox
+                    id="sem-cdf"
+                    checked={buscarSemCdf}
+                    onCheckedChange={(checked) => setBuscarSemCdf(!!checked)}
+                    data-testid="checkbox-sem-cdf"
+                  />
+                  <Label htmlFor="sem-cdf" className="text-sm cursor-pointer">
+                    Apenas sem CDF
+                  </Label>
+                </div>
               </div>
               <div className="flex items-end">
                 <Button
