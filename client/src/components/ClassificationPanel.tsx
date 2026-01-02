@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Upload, RefreshCw, ArrowRight, Check, XCircle, FileSpreadsheet, AlertTriangle } from "lucide-react";
+import { Upload, RefreshCw, ArrowRight, Check, XCircle, FileSpreadsheet, AlertTriangle, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -177,6 +177,17 @@ export function ClassificationPanel() {
                 <SelectItem value="IEMA">IEMA</SelectItem>
               </SelectContent>
             </Select>
+            <Button 
+              variant="ghost" 
+              size="sm"
+              asChild
+              data-testid="button-download-erp-model"
+            >
+              <a href="/api/templates/erp-model" download>
+                <Download className="mr-2 h-4 w-4" />
+                Modelo ERP
+              </a>
+            </Button>
             <div className="relative">
               <input 
                 type="file" 
