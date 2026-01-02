@@ -42,9 +42,6 @@ export default function Dashboard() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [mtrSearchCode, setMtrSearchCode] = useState("");
   const [platform, setPlatform] = useState<Platform>("SINIR");
-  const [importMode, setImportMode] = useState<'numero' | 'data'>('numero');
-  const [importDataInicio, setImportDataInicio] = useState("");
-  const [importDataFim, setImportDataFim] = useState("");
 
   const { data: mtrsData, isLoading } = useMtrs({ page, limit: 10, search });
   const { data: stats } = useLogStats();
@@ -175,111 +172,51 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Buscar MTR - Por Número ou Data */}
+      {/* Buscar MTR por Número */}
       <Card>
         <CardContent className="pt-4">
           <div className="flex flex-col gap-4">
-            <div className="flex items-center justify-between gap-4 flex-wrap">
-              <div className="flex-1">
-                <p className="text-sm font-medium mb-1">
-                  Buscar MTR diretamente do {platform}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {platform === 'SINIR' 
-                    ? 'Importe MTRs por número ou busque MTRs abertos por período (máx. 30 dias)'
-                    : 'Digite o código de barras do MTR para importar do sistema IEMA'}
-                </p>
-              </div>
-              {platform === 'SINIR' && (
-                <Select value={importMode} onValueChange={(v) => setImportMode(v as 'numero' | 'data')}>
-                  <SelectTrigger className="w-[160px]" data-testid="select-import-mode">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="numero">Por Número</SelectItem>
-                    <SelectItem value="data">Por Data (Abertos)</SelectItem>
-                  </SelectContent>
-                </Select>
-              )}
+            <div className="flex-1">
+              <p className="text-sm font-medium mb-1">
+                Buscar MTR diretamente do {platform}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {platform === 'SINIR' 
+                  ? 'Digite o número do MTR para importar do sistema SINIR'
+                  : 'Digite o código de barras do MTR para importar do sistema IEMA'}
+              </p>
             </div>
             
-            {importMode === 'numero' || platform === 'IEMA' ? (
-              <div className="flex items-center gap-2 flex-wrap">
-                <Input
-                  placeholder={platform === 'SINIR' ? "Ex: 123456789012" : "Ex: 32XXXXXXXXXXXXXXX"}
-                  value={mtrSearchCode}
-                  onChange={(e) => setMtrSearchCode(e.target.value)}
-                  className="flex-1 min-w-[200px]"
-                  data-testid="input-mtr-search"
-                />
-                <Button 
-                  onClick={() => {
-                    if (mtrSearchCode.trim()) {
-                      if (platform === 'SINIR') {
-                        importFromSinirMutation.mutate(mtrSearchCode.trim());
-                      } else {
-                        importFromIemaMutation.mutate(mtrSearchCode.trim());
-                      }
-                      setMtrSearchCode("");
+            <div className="flex items-center gap-2 flex-wrap">
+              <Input
+                placeholder={platform === 'SINIR' ? "Ex: 123456789012" : "Ex: 32XXXXXXXXXXXXXXX"}
+                value={mtrSearchCode}
+                onChange={(e) => setMtrSearchCode(e.target.value)}
+                className="flex-1 min-w-[200px]"
+                data-testid="input-mtr-search"
+              />
+              <Button 
+                onClick={() => {
+                  if (mtrSearchCode.trim()) {
+                    if (platform === 'SINIR') {
+                      importFromSinirMutation.mutate(mtrSearchCode.trim());
+                    } else {
+                      importFromIemaMutation.mutate(mtrSearchCode.trim());
                     }
-                  }}
-                  disabled={!mtrSearchCode.trim() || importFromSinirMutation.isPending || importFromIemaMutation.isPending}
-                  data-testid="button-import-mtr"
-                >
-                  {(importFromSinirMutation.isPending || importFromIemaMutation.isPending) ? (
-                    <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Search className="mr-2 h-4 w-4" />
-                  )}
-                  Importar
-                </Button>
-              </div>
-            ) : (
-              <div className="flex items-end gap-2 flex-wrap">
-                <div className="space-y-1">
-                  <label className="text-xs text-muted-foreground">Data Início</label>
-                  <Input
-                    type="date"
-                    value={importDataInicio}
-                    onChange={(e) => setImportDataInicio(e.target.value)}
-                    className="w-40"
-                    data-testid="input-import-data-inicio"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs text-muted-foreground">Data Fim</label>
-                  <Input
-                    type="date"
-                    value={importDataFim}
-                    onChange={(e) => setImportDataFim(e.target.value)}
-                    className="w-40"
-                    data-testid="input-import-data-fim"
-                  />
-                </div>
-                <Button 
-                  onClick={async () => {
-                    if (importDataInicio && importDataFim) {
-                      try {
-                        const res = await fetch(`/api/sinir/mtrs-abertos?dataInicio=${importDataInicio}&dataFim=${importDataFim}`);
-                        const data = await res.json();
-                        if (data.success && data.mtrs?.length > 0) {
-                          alert(`Encontrados ${data.mtrs.length} MTRs abertos. Funcionalidade de importação em lote em desenvolvimento.`);
-                        } else {
-                          alert(data.message || `Nenhum MTR aberto encontrado no período`);
-                        }
-                      } catch (err: any) {
-                        alert(`Erro: ${err.message}`);
-                      }
-                    }
-                  }}
-                  disabled={!importDataInicio || !importDataFim}
-                  data-testid="button-buscar-mtrs-abertos"
-                >
+                    setMtrSearchCode("");
+                  }
+                }}
+                disabled={!mtrSearchCode.trim() || importFromSinirMutation.isPending || importFromIemaMutation.isPending}
+                data-testid="button-import-mtr"
+              >
+                {(importFromSinirMutation.isPending || importFromIemaMutation.isPending) ? (
+                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
                   <Search className="mr-2 h-4 w-4" />
-                  Buscar MTRs Abertos
-                </Button>
-              </div>
-            )}
+                )}
+                Importar
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
