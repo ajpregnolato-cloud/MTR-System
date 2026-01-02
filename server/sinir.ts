@@ -282,14 +282,14 @@ export class SinirService {
     const defaultResponsavel = dbConfig.length > 0 ? dbConfig[0].responsavelNome : null;
 
     // Build payload as array according to SINIR docs
-    // Normalize names to remove accents (SINIR API encoding issues)
+    // Keep names as-is - SINIR requires exact match with registered name
     const payload: ManifestoRecebimento[] = mtrs.map(mtr => ({
       manNumero: mtr.mtrCode,
       dataRecebimento: new Date().getTime(),
-      nomeMotorista: this.normalizeNameForSinir(mtr.motorista),
+      nomeMotorista: mtr.motorista || undefined,
       placaVeiculo: mtr.placa || undefined,
-      nomeResponsavelRecebimento: this.normalizeNameForSinir(mtr.responsavelRecebimento || defaultResponsavel) || "Responsavel Tecnico",
-      observacoes: mtr.observations || `Recebido via integracao - ${new Date().toLocaleDateString('pt-BR')}`,
+      nomeResponsavelRecebimento: mtr.responsavelRecebimento || defaultResponsavel || "Responsável Técnico",
+      observacoes: mtr.observations || `Recebido via integração - ${new Date().toLocaleDateString('pt-BR')}`,
       listaManifestoResiduos: mtr.items.map(item => {
         const qty = Number(item.quantity) || 0;
         const qtyReceived = item.quantityReceived ? Number(item.quantityReceived) : qty;
