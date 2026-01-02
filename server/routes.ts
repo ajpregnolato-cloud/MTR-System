@@ -2,6 +2,8 @@ import type { Express } from "express";
 import type { Server } from "http";
 import multer from "multer";
 import * as xlsx from "xlsx";
+import path from "path";
+import fs from "fs";
 import { storage } from "./storage";
 import { sessionStorage, type SessionMtr, type SendResult } from "./session-storage";
 import { generateResultLog, getLogFilename } from "./result-log-generator";
@@ -1254,6 +1256,19 @@ export async function registerRoutes(
       });
       res.status(500).json({ message: error.message });
     }
+  });
+
+  // === Download Templates ===
+  app.get('/api/templates/erp-model', (req, res) => {
+    const filePath = path.join(process.cwd(), 'attached_assets', 'MODELO_PLANILHA_ERP.xlsx');
+    
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ message: 'Arquivo modelo não encontrado' });
+    }
+    
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="MODELO_PLANILHA_ERP.xlsx"');
+    res.sendFile(filePath);
   });
 
   return httpServer;
