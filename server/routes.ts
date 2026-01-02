@@ -630,12 +630,12 @@ export async function registerRoutes(
   // Emit (finalize) CDF
   app.post("/api/sinir/cdf/emitir", async (req, res) => {
     try {
-      const { periodoInicio, periodoFim, responsavelTecnico, manifestos, observacoes } = req.body;
+      const { responsavelTecnico, manifestos, observacoes } = req.body;
       
-      if (!periodoInicio || !periodoFim || !manifestos || manifestos.length === 0) {
+      if (!manifestos || manifestos.length === 0) {
         return res.status(400).json({ 
           success: false, 
-          message: "Período e pelo menos um manifesto são obrigatórios" 
+          message: "Pelo menos um manifesto é obrigatório" 
         });
       }
 
@@ -648,8 +648,6 @@ export async function registerRoutes(
 
       const sinir = new SinirService();
       const result = await sinir.emitirCdf({
-        periodoInicio,
-        periodoFim,
         responsavelTecnico,
         manifestos,
         observacoes,
