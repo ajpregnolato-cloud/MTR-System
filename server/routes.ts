@@ -927,6 +927,7 @@ export async function registerRoutes(
       }
 
       // Map SINIR data to session storage format
+      // Use manResponsavel from SINIR as default responsible (avoids encoding issues with accents)
       const mtrData = {
         mtrCode: sinirData.manNumero || mtrCode,
         platform: "SINIR" as const,
@@ -940,6 +941,7 @@ export async function registerRoutes(
         receiverCnpj: sinirData.parceiroDestinador?.parCnpj || sinirData.destinadorCnpj || sinirData.desCpfCnpj,
         motorista: sinirData.manNomeMotorista || null,
         placa: sinirData.manPlacaVeiculo || null,
+        responsavelRecebimento: sinirData.manResponsavel || null, // Capture original from SINIR API
         sinirStatus: sinirData.situacaoManifesto?.simDescricao || sinirData.situacao || "SALVO",
         systemStatus: "PENDENTE" as const,
         observations: sinirData.manObservacao || null,
